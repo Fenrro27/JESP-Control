@@ -29,7 +29,7 @@ public class JespBackendMain {
         engine.loadRules(rulesFile);
         engine.start();
 
-        // 2. Servidores HTTP y WebSocket
+        // Servidores HTTP y WebSocket
         Esp32Server server = new Esp32Server(rulesFile, engine);
         Esp32WebSocketServer wsServer = new Esp32WebSocketServer(5000);
         
