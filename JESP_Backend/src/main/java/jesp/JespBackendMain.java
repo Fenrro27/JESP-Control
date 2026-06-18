@@ -17,10 +17,7 @@ public class JespBackendMain {
         System.out.println("=========================================");
         System.out.println("Ejecutando en modo Servidor (Headless).");
         
-        // 0. Base de datos
         DatabaseManager.initialize();
-
-        // 1. Motor de reglas
         RulesEngine engine = new RulesEngine();
         
         // Crear un archivo de reglas de ejemplo si no existe
