@@ -1,16 +1,7 @@
-# Compiled class file
+# ========================================
+# JAVA: COMPILADOS Y EMPAQUETADOS
+# ========================================
 *.class
-
-# Log file
-*.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
 *.jar
 *.war
 *.nar
@@ -19,6 +10,76 @@
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# Logs y reportes de crash de la JVM
+*.log
 hs_err_pid*
 replay_pid*
+
+# ========================================
+# BASES DE DATOS Y CONFIGURACIÓN LOCAL
+# ========================================
+*.db
+*.sqlite
+rules.conf
+
+# ========================================
+# JAVA: HERRAMIENTAS DE BUILD (Maven/Gradle)
+# ========================================
+target/
+build/
+backend-java/target/
+backend-java/build/
+.gradle/
+
+# ========================================
+# ARDUINO / ESP32
+# ========================================
+arduino/**/build/
+arduino/**/secrets.h
+
+# ========================================
+# PYTHON (Scripts / Emulador)
+# ========================================
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# ========================================
+# ENTORNOS DE DESARROLLO (IDEs)
+# ========================================
+
+# Eclipse
+.metadata/
+.settings/
+.project
+.classpath
+bin/
+tmp/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+out/
+
+# VS Code
+.vscode/
+
+# NetBeans
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# BlueJ / J2ME
+*.ctxt
+.mtj.tmp/
+
+# ========================================
+# ARCHIVOS DE SISTEMA OPERATIVO
+# ========================================
+.DS_Store
+Thumbs.db
