@@ -12,3 +12,14 @@ El proyecto está compuesto por los siguientes programas y directorios principal
 - [`arduino/ESP32_Emu/`](./arduino/ESP32_Emu/): Script de Python (`ESP32_Emu.py`) que emula el comportamiento del hardware físico del ESP32. Permite probar y desarrollar el backend y la aplicación de escritorio sin necesidad de tener el hardware físico conectado.
 
 Por favor, consulta los archivos `README.md` específicos dentro de cada directorio para obtener más información sobre la configuración y ejecución de cada programa.
+
+## Futuras Mejoras Propuestas
+
+Dado que la arquitectura centraliza la lógica en el backend Java, el sistema es altamente escalable. Algunas mejoras posibles para futuras versiones incluyen:
+
+- **🤖 Integración con Bots (Telegram/WhatsApp):** Alertas instantáneas de sensores y control remoto de relés mediante mensajes, sin necesidad de abrir puertos en el router.
+- **🌤️ Clima Exterior Predictivo (API Open-Meteo):** Enriquecer el motor de reglas con datos meteorológicos externos gratuitos (ej. evitar el riego si hay previsión de lluvia).
+- **🏡 Integración con Home Assistant / MQTT:** Publicar el estado en un broker MQTT para integrarse fácilmente con ecosistemas domóticos y usar asistentes de voz como Alexa o Google Home.
+- **⏱️ Programación Avanzada (Cron Jobs):** Integrar librerías como Quartz Scheduler para programar ciclos complejos y eventos recurrentes precisos (ej. "cada primer lunes de mes").
+- **🔒 Enclavamientos de Seguridad (Interlocks):** Prevención por software de la activación simultánea de relés conflictivos (ej. activar motor hacia adelante y hacia atrás a la vez).
+- **📊 Dashboards Avanzados con Grafana:** Conectar la base de datos SQLite (`jesp_data.db`) a Grafana para generar gráficos analíticos en tiempo real del historial de temperatura y uso de relés.

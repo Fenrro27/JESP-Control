@@ -10,6 +10,7 @@ services:
     environment:
       JESP_DB_PATH: /app/data/jesp_data.db
       JESP_RULES_FILE: /app/data/rules.conf
+      TZ: Europe/Madrid
     volumes:
       - jesp-data:/app/data
     restart: unless-stopped
