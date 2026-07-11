@@ -1,5 +1,7 @@
 package jesp;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -7,10 +9,25 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 
 public class DatabaseManager {
-    private static final String DB_URL = "jdbc:sqlite:jesp_data.db";
+    private static String getDatabaseUrl() {
+        String configuredPath = System.getenv("JESP_DB_PATH");
+        String dbPath = (configuredPath != null && !configuredPath.isBlank()) ? configuredPath : "jesp_data.db";
+
+        Path dbFile = Path.of(dbPath);
+        Path parent = dbFile.getParent();
+        if (parent != null) {
+            try {
+                Files.createDirectories(parent);
+            } catch (Exception e) {
+                System.err.println("No se pudo crear el directorio de la base de datos: " + e.getMessage());
+            }
+        }
+
+        return "jdbc:sqlite:" + dbFile.toAbsolutePath();
+    }
 
     public static void initialize() {
-        try (Connection conn = DriverManager.getConnection(DB_URL);
+        try (Connection conn = DriverManager.getConnection(getDatabaseUrl());
              Statement stmt = conn.createStatement()) {
              
             String sqlSensor = "CREATE TABLE IF NOT EXISTS sensor_history (" +
@@ -38,7 +55,7 @@ public class DatabaseManager {
 
     public static void insertSensorData(float temp, float hum) {
         String sql = "INSERT INTO sensor_history(temperature, humidity) VALUES(?, ?)";
-        try (Connection conn = DriverManager.getConnection(DB_URL);
+        try (Connection conn = DriverManager.getConnection(getDatabaseUrl());
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setFloat(1, temp);
             pstmt.setFloat(2, hum);
@@ -50,7 +67,7 @@ public class DatabaseManager {
 
     public static void insertRelayEvent(int relayIndex, boolean state, String source) {
         String sql = "INSERT INTO relay_history(relay_index, new_state, source) VALUES(?, ?, ?)";
-        try (Connection conn = DriverManager.getConnection(DB_URL);
+        try (Connection conn = DriverManager.getConnection(getDatabaseUrl());
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setInt(1, relayIndex);
             pstmt.setBoolean(2, state);
@@ -65,7 +82,7 @@ public class DatabaseManager {
         String sql = "SELECT timestamp, temperature, humidity FROM sensor_history ORDER BY id DESC LIMIT ?";
         StringBuilder sb = new StringBuilder();
         sb.append("[");
-        try (Connection conn = DriverManager.getConnection(DB_URL);
+        try (Connection conn = DriverManager.getConnection(getDatabaseUrl());
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setInt(1, limit);
             ResultSet rs = pstmt.executeQuery();

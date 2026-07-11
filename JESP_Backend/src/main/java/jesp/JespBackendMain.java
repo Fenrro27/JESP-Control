@@ -4,7 +4,7 @@ import java.io.File;
 
 public class JespBackendMain {
     public static void main(String[] args) {
-        String rulesFile = "rules.conf";
+        String rulesFile = System.getenv().getOrDefault("JESP_RULES_FILE", "rules.conf");
 
         for (String arg : args) {
             if (arg.startsWith("--rules=")) {
@@ -16,6 +16,7 @@ public class JespBackendMain {
         System.out.println(" Iniciando JESP-Control Backend...");
         System.out.println("=========================================");
         System.out.println("Ejecutando en modo Servidor (Headless).");
+        System.out.println("Usando archivo de reglas: " + rulesFile);
         
         DatabaseManager.initialize();
         RulesEngine engine = new RulesEngine();
