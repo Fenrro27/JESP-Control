@@ -32,7 +32,7 @@ public class DatabaseManager {
              
             String sqlSensor = "CREATE TABLE IF NOT EXISTS sensor_history (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT," +
-                    "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP," +
+                    "timestamp DATETIME DEFAULT (datetime('now', 'localtime'))," +
                     "temperature REAL," +
                     "humidity REAL" +
                     ");";
@@ -40,7 +40,7 @@ public class DatabaseManager {
 
             String sqlRelay = "CREATE TABLE IF NOT EXISTS relay_history (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT," +
-                    "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP," +
+                    "timestamp DATETIME DEFAULT (datetime('now', 'localtime'))," +
                     "relay_index INTEGER," +
                     "new_state BOOLEAN," +
                     "source TEXT" + // 'MANUAL' o 'AUTOMATIC'
@@ -54,7 +54,7 @@ public class DatabaseManager {
     }
 
     public static void insertSensorData(float temp, float hum) {
-        String sql = "INSERT INTO sensor_history(temperature, humidity) VALUES(?, ?)";
+        String sql = "INSERT INTO sensor_history(timestamp, temperature, humidity) VALUES(datetime('now', 'localtime'), ?, ?)";
         try (Connection conn = DriverManager.getConnection(getDatabaseUrl());
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setFloat(1, temp);
@@ -66,7 +66,7 @@ public class DatabaseManager {
     }
 
     public static void insertRelayEvent(int relayIndex, boolean state, String source) {
-        String sql = "INSERT INTO relay_history(relay_index, new_state, source) VALUES(?, ?, ?)";
+        String sql = "INSERT INTO relay_history(timestamp, relay_index, new_state, source) VALUES(datetime('now', 'localtime'), ?, ?, ?)";
         try (Connection conn = DriverManager.getConnection(getDatabaseUrl());
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setInt(1, relayIndex);
