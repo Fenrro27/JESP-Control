@@ -1,4 +1,7 @@
-package jesp;
+package jesp.controller;
+
+import jesp.model.*;
+import jesp.controller.*;
 
 import org.java_websocket.server.WebSocketServer;
 import org.java_websocket.WebSocket;

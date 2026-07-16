@@ -1,5 +1,9 @@
 package jesp_desktop;
 
+import jesp_desktop.controller.BackendClient;
+import jesp_desktop.view.ControlPanelGUI;
+import jesp_desktop.model.ConfigManager;
+
 import javax.swing.SwingUtilities;
 
 public class DesktopMain {

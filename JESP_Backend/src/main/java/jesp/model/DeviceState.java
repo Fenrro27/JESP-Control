@@ -1,10 +1,13 @@
-package jesp;
+package jesp.model;
+
+import jesp.model.*;
+import jesp.controller.*;
 
 public class DeviceState {
     public static float currentTemp = 0.0f;
     public static float currentHum = 0.0f;
     public static boolean[] relays = new boolean[6];
-    public static boolean[] manualOverride = new boolean[6]; // Si el usuario lo activa manualmente, se pausa la regla para ese relé temporalmente
+    public static long[] overrideExpiration = new long[6]; // 0 = Auto, Long.MAX_VALUE = Perm, else Unix timestamp expiration
     
     // Callback para la GUI
     public static Runnable onStateChanged = null;

@@ -1,4 +1,7 @@
-package jesp;
+package jesp.controller;
+
+import jesp.model.*;
+import jesp.controller.*;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -83,7 +86,7 @@ public class RulesEngine {
 
         for (Rule rule : rules) {
             if (rule.relayIndex < 0 || rule.relayIndex >= 6) continue;
-            if (DeviceState.manualOverride[rule.relayIndex]) continue; // No anular si el usuario lo cambió a mano
+            if (DeviceState.overrideExpiration[rule.relayIndex] > System.currentTimeMillis()) continue; // No anular si está en manual y no ha expirado
 
             boolean conditionMet = rule.evaluate(temp, hum, now);
             if (conditionMet) {
@@ -92,7 +95,12 @@ public class RulesEngine {
         }
 
         for (int i = 0; i < 6; i++) {
-            if (DeviceState.manualOverride[i]) continue;
+            if (DeviceState.overrideExpiration[i] > System.currentTimeMillis()) {
+                continue;
+            } else if (DeviceState.overrideExpiration[i] != 0) {
+                // Si expiró, reseteamos a automático puro
+                DeviceState.overrideExpiration[i] = 0;
+            }
 
             boolean target;
             if (desiredState[i] != null) {

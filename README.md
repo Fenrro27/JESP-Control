@@ -23,3 +23,4 @@ Dado que la arquitectura centraliza la lógica en el backend Java, el sistema es
 - **⏱️ Programación Avanzada (Cron Jobs):** Integrar librerías como Quartz Scheduler para programar ciclos complejos y eventos recurrentes precisos (ej. "cada primer lunes de mes").
 - **🔒 Enclavamientos de Seguridad (Interlocks):** Prevención por software de la activación simultánea de relés conflictivos (ej. activar motor hacia adelante y hacia atrás a la vez).
 - **📊 Dashboards Avanzados con Grafana:** Conectar la base de datos SQLite (`jesp_data.db`) a Grafana para generar gráficos analíticos en tiempo real del historial de temperatura y uso de relés.
+- **🗜️ Downsampling de Datos (Rollups):** Implementar una tarea en segundo plano que compacte el historial de la base de datos agrupando registros antiguos por hora o por día para mantener la velocidad de consulta a largo plazo.

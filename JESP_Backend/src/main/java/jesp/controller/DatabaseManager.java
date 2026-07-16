@@ -1,4 +1,7 @@
-package jesp;
+package jesp.controller;
+
+import jesp.model.*;
+import jesp.controller.*;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -7,6 +10,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.security.MessageDigest;
 
 public class DatabaseManager {
     private static String getDatabaseUrl() {
@@ -46,6 +50,22 @@ public class DatabaseManager {
                     "source TEXT" + // 'MANUAL' o 'AUTOMATIC'
                     ");";
             stmt.execute(sqlRelay);
+            
+            String sqlUsers = "CREATE TABLE IF NOT EXISTS users (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "username TEXT UNIQUE NOT NULL," +
+                    "password_hash TEXT NOT NULL," +
+                    "role TEXT NOT NULL CHECK(role IN ('ADMIN', 'USER'))" +
+                    ");";
+            stmt.execute(sqlUsers);
+
+            // Check if users table is empty
+            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) AS count FROM users");
+            if (rs.next() && rs.getInt("count") == 0) {
+                System.out.println("Tabla de usuarios vacía. Creando usuario admin por defecto...");
+                addUser("admin", "admin", "ADMIN");
+            }
+            rs.close();
             
             System.out.println("Base de datos SQLite inicializada correctamente.");
         } catch (Exception e) {
@@ -99,5 +119,54 @@ public class DatabaseManager {
         }
         sb.append("]");
         return sb.toString();
+    }
+
+    private static String hashPassword(String password) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(password.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if(hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Error hashing password", e);
+        }
+    }
+
+    public static boolean addUser(String username, String password, String role) {
+        String sql = "INSERT INTO users(username, password_hash, role) VALUES(?, ?, ?)";
+        try (Connection conn = DriverManager.getConnection(getDatabaseUrl());
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, username);
+            pstmt.setString(2, hashPassword(password));
+            pstmt.setString(3, role.toUpperCase());
+            pstmt.executeUpdate();
+            return true;
+        } catch (Exception e) {
+            System.err.println("Error añadiendo usuario: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public static String authenticateAndGetRole(String username, String password) {
+        String sql = "SELECT password_hash, role FROM users WHERE username = ?";
+        try (Connection conn = DriverManager.getConnection(getDatabaseUrl());
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, username);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                String storedHash = rs.getString("password_hash");
+                if (storedHash.equals(hashPassword(password))) {
+                    return rs.getString("role");
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error autenticando usuario: " + e.getMessage());
+        }
+        return null;
     }
 }

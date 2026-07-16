@@ -1,4 +1,7 @@
-package jesp;
+package jesp.model;
+
+import jesp.model.*;
+import jesp.controller.*;
 
 import java.time.LocalTime;
 

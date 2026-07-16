@@ -1,4 +1,7 @@
-package jesp_desktop;
+package jesp_desktop.view;
+
+import jesp_desktop.controller.BackendClient;
+import jesp_desktop.model.ConfigManager;
 
 import javax.swing.*;
 import java.awt.*;
@@ -24,6 +27,16 @@ public class ControlPanelGUI {
         JMenuBar menuBar = new JMenuBar();
         JMenu menuOpciones = new JMenu("Opciones");
         
+        JMenuItem itemLogin = new JMenuItem("Iniciar Sesión...");
+        itemLogin.addActionListener(e -> showLoginDialog());
+
+        JMenuItem itemLogout = new JMenuItem("Cerrar Sesión");
+        itemLogout.addActionListener(e -> {
+            client.token = null;
+            client.role = "GUEST";
+            JOptionPane.showMessageDialog(frame, "Sesión cerrada. Estás en modo INVITADO.");
+        });
+
         JMenuItem itemCambiarIp = new JMenuItem("Cambiar IP del Servidor...");
         itemCambiarIp.addActionListener(e -> {
             String currentIp = ConfigManager.getServerIp();
@@ -40,6 +53,9 @@ public class ControlPanelGUI {
         JMenuItem itemHistorial = new JMenuItem("Ver Historial...");
         itemHistorial.addActionListener(e -> mostrarHistorial());
         
+        menuOpciones.add(itemLogin);
+        menuOpciones.add(itemLogout);
+        menuOpciones.addSeparator();
         menuOpciones.add(itemCambiarIp);
         menuOpciones.add(itemReglas);
         menuOpciones.add(itemHistorial);
@@ -66,9 +82,17 @@ public class ControlPanelGUI {
             btnRelays[i].setFont(new Font("Arial", Font.PLAIN, 16));
             btnRelays[i].setFocusPainted(false);
             btnRelays[i].addActionListener(e -> {
+                if (client.token == null) {
+                    JOptionPane.showMessageDialog(frame, "Debes iniciar sesión para controlar los relés.", "No Autorizado", JOptionPane.WARNING_MESSAGE);
+                    btnRelays[index].setSelected(!btnRelays[index].isSelected()); // Revert toggle
+                    return;
+                }
                 boolean state = btnRelays[index].isSelected();
                 client.setRelay(index, state); // Enviar al backend vía API
                 updateButtonColor(index);
+                
+                String expMsg = "ADMIN".equals(client.role) ? "permanentemente" : "por 2 horas";
+                System.out.println("Relé " + (index+1) + " cambiado " + expMsg);
             });
             panelRelays.add(btnRelays[i]);
             updateButtonColor(i);
@@ -80,6 +104,10 @@ public class ControlPanelGUI {
         JButton btnResetOverride = new JButton("Restaurar Control Automático (Reglas)");
         btnResetOverride.setFont(new Font("Arial", Font.PLAIN, 14));
         btnResetOverride.addActionListener(e -> {
+            if (client.token == null) {
+                JOptionPane.showMessageDialog(frame, "Debes iniciar sesión para resetear el control manual.", "No Autorizado", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
             client.resetOverrides(); // Enviar comando reset al backend
             JOptionPane.showMessageDialog(frame, "Control manual reseteado en el servidor.\nLas reglas definidas en el backend volverán a evaluar los relés.");
         });
@@ -134,6 +162,8 @@ public class ControlPanelGUI {
 
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
+
+        SwingUtilities.invokeLater(() -> showLoginDialog());
     }
     
     private void updateButtonColor(int index) {
@@ -190,6 +220,10 @@ public class ControlPanelGUI {
     }
 
     private void editarReglas() {
+        if (!"ADMIN".equals(client.role)) {
+            JOptionPane.showMessageDialog(frame, "Solo los administradores pueden editar las reglas.", "Acceso Denegado", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
         try {
             String rulesText = client.getRules();
             JTextArea textArea = new JTextArea(rulesText);
@@ -224,6 +258,29 @@ public class ControlPanelGUI {
             dialog.setVisible(true);
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(frame, "Error al obtener las reglas del servidor: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void showLoginDialog() {
+        JTextField usernameField = new JTextField(15);
+        JPasswordField passwordField = new JPasswordField(15);
+
+        JPanel panel = new JPanel(new GridLayout(2, 2, 5, 5));
+        panel.add(new JLabel("Usuario:"));
+        panel.add(usernameField);
+        panel.add(new JLabel("Contraseña:"));
+        panel.add(passwordField);
+
+        int result = JOptionPane.showConfirmDialog(frame, panel, "Iniciar Sesión", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (result == JOptionPane.OK_OPTION) {
+            String user = usernameField.getText().trim();
+            String pass = new String(passwordField.getPassword());
+            boolean success = client.login(user, pass);
+            if (success) {
+                JOptionPane.showMessageDialog(frame, "Sesión iniciada correctamente como: " + client.role);
+            } else {
+                JOptionPane.showMessageDialog(frame, "Credenciales incorrectas o error de red.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 }

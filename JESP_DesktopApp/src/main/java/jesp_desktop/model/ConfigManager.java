@@ -1,4 +1,4 @@
-package jesp_desktop;
+package jesp_desktop.model;
 
 import java.io.File;
 import java.io.FileInputStream;

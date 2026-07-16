@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JESP-Control Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --glass-bg: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --danger: #ef4444;
+            --success: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+        }
+
+        .header {
+            width: 100%;
+            max-width: 1000px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding: 1rem 2rem;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+        }
+
+        .title {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            background: -webkit-linear-gradient(45deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .auth-panel {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.5rem 1.2rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover:not(:disabled) {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background: var(--text-muted);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .dashboard {
+            width: 100%;
+            max-width: 1000px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .sensor-val {
+            font-size: 3rem;
+            font-weight: 800;
+        }
+
+        .sensor-label {
+            color: var(--text-muted);
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .relays-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .relay-btn {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--glass-border);
+            padding: 1rem;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .relay-btn.on {
+            background: rgba(16, 185, 129, 0.2);
+            border-color: var(--success);
+        }
+
+        .relay-btn .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+
+        .relay-btn.on .status-dot {
+            background: var(--success);
+            box-shadow: 0 0 10px var(--success);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px);
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .modal-content {
+            background: var(--bg-color);
+            padding: 2rem;
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            width: 90%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.8rem;
+            border-radius: 8px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255,255,255,0.05);
+            color: white;
+            font-family: inherit;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 0.8rem;
+            border-radius: 8px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255,255,255,0.05);
+            color: white;
+            font-family: monospace;
+            resize: vertical;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard { grid-template-columns: 1fr; }
+        }
+        
+        .badge {
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            background: var(--accent);
+        }
+        
+        #rulesSection {
+            margin-top: 2rem;
+            width: 100%;
+            max-width: 1000px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="title">JESP-Control Web</div>
+        <div class="auth-panel">
+            <span id="roleBadge" class="badge">GUEST</span>
+            <button id="loginBtn" onclick="showLogin()">Login</button>
+            <button id="logoutBtn" onclick="logout()" style="display:none; background: var(--danger)">Logout</button>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <div class="card">
+            <h3 class="sensor-label">Sensores</h3>
+            <div>
+                <div class="sensor-val" id="tempVal">--.-°C</div>
+                <div class="sensor-label">Temperatura</div>
+            </div>
+            <div>
+                <div class="sensor-val" id="humVal">--.-%</div>
+                <div class="sensor-label">Humedad</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 class="sensor-label">Relés (1-6)</h3>
+            <div class="relays-grid" id="relaysGrid">
+                <!-- Relays will be injected here -->
+            </div>
+            <button id="resetBtn" onclick="resetOverrides()" style="display: none; margin-top: 1rem; background: var(--danger)">Resetear Automático</button>
+        </div>
+    </div>
+    
+    <div class="card" id="rulesSection">
+        <h3 class="sensor-label">Editor de Reglas (Solo ADMIN)</h3>
+        <textarea id="rulesEditor" placeholder="Cargando reglas..."></textarea>
+        <button onclick="saveRules()">Guardar Reglas</button>
+    </div>
+
+    <!-- Login Modal -->
+    <div class="modal" id="loginModal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 1rem">Iniciar Sesión</h2>
+            <input type="text" id="username" placeholder="Usuario (ej. admin)">
+            <input type="password" id="password" placeholder="Contraseña">
+            <div style="color: var(--danger); font-size: 0.9rem; display: none" id="loginError">Credenciales incorrectas</div>
+            <div style="display: flex; gap: 1rem; margin-top: 1rem">
+                <button onclick="doLogin()" style="flex: 1">Entrar</button>
+                <button onclick="closeLogin()" style="flex: 1; background: transparent; border: 1px solid var(--text-muted)">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentToken = localStorage.getItem('jesp_token');
+        let currentRole = localStorage.getItem('jesp_role') || 'GUEST';
+
+        function init() {
+            updateAuthUI();
+            buildRelayButtons();
+            fetchState();
+            setInterval(fetchState, 2000);
+        }
+
+        function updateAuthUI() {
+            document.getElementById('roleBadge').innerText = currentRole;
+            document.getElementById('roleBadge').style.background = currentRole === 'ADMIN' ? 'var(--danger)' : (currentRole === 'USER' ? 'var(--success)' : 'var(--text-muted)');
+            
+            if (currentToken) {
+                document.getElementById('loginBtn').style.display = 'none';
+                document.getElementById('logoutBtn').style.display = 'block';
+                document.getElementById('resetBtn').style.display = 'block';
+            } else {
+                document.getElementById('loginBtn').style.display = 'block';
+                document.getElementById('logoutBtn').style.display = 'none';
+                document.getElementById('resetBtn').style.display = 'none';
+            }
+            
+            if (currentRole === 'ADMIN') {
+                document.getElementById('rulesSection').style.display = 'flex';
+                fetchRules();
+            } else {
+                document.getElementById('rulesSection').style.display = 'none';
+            }
+            
+            buildRelayButtons(); // Rebuild buttons to enable/disable based on role
+        }
+
+        function showLogin() {
+            document.getElementById('loginModal').style.display = 'flex';
+        }
+
+        function closeLogin() {
+            document.getElementById('loginModal').style.display = 'none';
+            document.getElementById('loginError').style.display = 'none';
+        }
+
+        function logout() {
+            currentToken = null;
+            currentRole = 'GUEST';
+            localStorage.removeItem('jesp_token');
+            localStorage.removeItem('jesp_role');
+            updateAuthUI();
+        }
+
+        async function doLogin() {
+            const u = document.getElementById('username').value;
+            const p = document.getElementById('password').value;
+            
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    body: `username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`,
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'}
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    currentToken = data.token;
+                    currentRole = data.role;
+                    localStorage.setItem('jesp_token', currentToken);
+                    localStorage.setItem('jesp_role', currentRole);
+                    closeLogin();
+                    updateAuthUI();
+                } else {
+                    document.getElementById('loginError').style.display = 'block';
+                }
+            } catch (e) {
+                alert("Error de conexión");
+            }
+        }
+
+        function buildRelayButtons() {
+            const grid = document.getElementById('relaysGrid');
+            grid.innerHTML = '';
+            for (let i = 0; i < 6; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'relay-btn';
+                btn.id = `relayBtn${i}`;
+                btn.disabled = !currentToken; // Disable if not logged in
+                btn.onclick = () => toggleRelay(i);
+                
+                btn.innerHTML = `
+                    <span>Relé ${i+1}</span>
+                    <div class="status-dot"></div>
+                `;
+                grid.appendChild(btn);
+            }
+        }
+
+        async function fetchState() {
+            try {
+                const res = await fetch('/api/state');
+                const data = await res.json();
+                
+                document.getElementById('tempVal').innerText = data.temp.toFixed(1) + '°C';
+                document.getElementById('humVal').innerText = data.hum.toFixed(1) + '%';
+                
+                for (let i = 0; i < 6; i++) {
+                    const btn = document.getElementById(`relayBtn${i}`);
+                    if (btn) {
+                        if (data.relays[i]) {
+                            btn.classList.add('on');
+                        } else {
+                            btn.classList.remove('on');
+                        }
+                        
+                        // Si está overriden, mostrarlo visualmente
+                        if (data.overrides[i]) {
+                            btn.style.boxShadow = '0 0 10px rgba(59, 130, 246, 0.5)';
+                        } else {
+                            btn.style.boxShadow = 'none';
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Error fetching state", e);
+            }
+        }
+
+        async function toggleRelay(index) {
+            const btn = document.getElementById(`relayBtn${index}`);
+            const newState = !btn.classList.contains('on');
+            
+            try {
+                const res = await fetch('/api/relay', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`,
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: `relay=${index}&state=${newState}`
+                });
+                
+                if (res.status === 401) {
+                    logout();
+                    showLogin();
+                } else if (res.ok) {
+                    fetchState();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function resetOverrides() {
+            try {
+                await fetch('/api/reset_override', {
+                    method: 'POST',
+                    headers: {'Authorization': `Bearer ${currentToken}`}
+                });
+                fetchState();
+            } catch (e) {}
+        }
+        
+        async function fetchRules() {
+            try {
+                const res = await fetch('/api/rules', {
+                    headers: {'Authorization': `Bearer ${currentToken}`}
+                });
+                if (res.ok) {
+                    document.getElementById('rulesEditor').value = await res.text();
+                }
+            } catch (e) {}
+        }
+        
+        async function saveRules() {
+            const content = document.getElementById('rulesEditor').value;
+            try {
+                const res = await fetch('/api/rules', {
+                    method: 'POST',
+                    headers: {'Authorization': `Bearer ${currentToken}`},
+                    body: content
+                });
+                if (res.ok) {
+                    alert("Reglas guardadas y aplicadas.");
+                } else {
+                    alert("Error guardando reglas.");
+                }
+            } catch (e) {}
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
