@@ -83,3 +83,6 @@ nbdist/
 # ========================================
 .DS_Store
 Thumbs.db
+
+
+config.properties 
