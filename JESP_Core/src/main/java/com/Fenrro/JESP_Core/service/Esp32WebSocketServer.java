@@ -91,6 +91,10 @@ public class Esp32WebSocketServer extends WebSocketServer {
         log.info("Servidor WebSocket ESP32 listo en el puerto {}", getPort());
     }
 
+    public boolean isDeviceConnected() {
+        return !connections.isEmpty();
+    }
+
     public void broadcastCurrentConfig() {
         try {
             String msg = objectMapper.writeValueAsString(Map.of("reles", deviceState.getRelays()));

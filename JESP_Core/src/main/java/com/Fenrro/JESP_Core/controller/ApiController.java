@@ -3,6 +3,7 @@ package com.Fenrro.JESP_Core.controller;
 import com.Fenrro.JESP_Core.entity.SensorHistory;
 import com.Fenrro.JESP_Core.repository.SensorHistoryRepository;
 import com.Fenrro.JESP_Core.service.DeviceState;
+import com.Fenrro.JESP_Core.service.Esp32WebSocketServer;
 import com.Fenrro.JESP_Core.service.HistoryService;
 import com.Fenrro.JESP_Core.service.RulesEngine;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,7 @@ public class ApiController {
     private final DeviceState deviceState;
     private final HistoryService historyService;
     private final RulesEngine rulesEngine;
+    private final Esp32WebSocketServer esp32Server;
 
     @Value("${jesp.rules-file}")
     private String rulesFile;
@@ -42,7 +44,8 @@ public class ApiController {
     @GetMapping(value = "/state", produces = MediaType.APPLICATION_JSON_VALUE)
     public String state() {
         StringBuilder sb = new StringBuilder();
-        sb.append("{\"temp\": ").append(deviceState.getCurrentTemp())
+        sb.append("{\"connected\": ").append(esp32Server.isDeviceConnected())
+          .append(", \"temp\": ").append(deviceState.getCurrentTemp())
           .append(", \"hum\": ").append(deviceState.getCurrentHum())
           .append(", \"relays\": [");
         boolean[] relays = deviceState.getRelays();

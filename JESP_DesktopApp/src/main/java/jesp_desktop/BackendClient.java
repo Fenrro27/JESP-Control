@@ -25,6 +25,7 @@ public class BackendClient {
     public boolean[] overrides = new boolean[6];
     
     public boolean isConnected = false;
+    public boolean arduinoConnected = false;
     public Runnable onConnectionChange;
     public Runnable onUpdate;
 
@@ -76,6 +77,7 @@ public class BackendClient {
                     isConnected = true;
                 } catch (Exception e) {
                     isConnected = false;
+                    arduinoConnected = false;
                     System.err.println("No se pudo conectar al Backend: " + e.getMessage());
                 }
                 
@@ -110,8 +112,15 @@ public class BackendClient {
     }
 
     private void parseState(String json) {
-        // Formato esperado: {"temp": 25.0, "hum": 40.0, "relays": [true, false, false, false, false, false], "overrides": [false, false, false, false, false, false]}
+        // Formato esperado: {"connected": true, "temp": 25.0, "hum": 40.0, "relays": [true, false, false, false, false, false], "overrides": [false, false, false, false, false, false]}
         try {
+            try {
+                String c = json.split("\"connected\": ")[1].split(",")[0].trim();
+                this.arduinoConnected = c.equals("true");
+            } catch (Exception ignored) {
+                // campo ausente (backend antiguo) -> se conserva el estado anterior
+            }
+
             String t = json.split("\"temp\": ")[1].split(",")[0].trim();
             this.temp = Float.parseFloat(t);
             

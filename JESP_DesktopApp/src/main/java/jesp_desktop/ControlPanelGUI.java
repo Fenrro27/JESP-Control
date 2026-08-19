@@ -8,6 +8,7 @@ public class ControlPanelGUI {
     private JLabel lblTemp;
     private JLabel lblHum;
     private JLabel lblConnectionStatus;
+    private JLabel lblArduinoStatus;
     private JToggleButton[] btnRelays;
     private BackendClient client;
     private HistoryPanel historyPanel;
@@ -63,6 +64,15 @@ public class ControlPanelGUI {
             SwingUtilities.invokeLater(() -> {
                 lblTemp.setText(String.format("Temperatura: %.1f °C", client.temp));
                 lblHum.setText(String.format("Humedad: %.1f %%", client.hum));
+
+                if (client.arduinoConnected) {
+                    lblArduinoStatus.setText("● Arduino: Conectado");
+                    lblArduinoStatus.setForeground(new Color(0, 150, 0));
+                } else {
+                    lblArduinoStatus.setText("● Arduino: Desconectado");
+                    lblArduinoStatus.setForeground(Color.RED);
+                }
+
                 for (int i = 0; i < 6; i++) {
                     if (btnRelays[i].isSelected() != client.relays[i]) {
                         btnRelays[i].setSelected(client.relays[i]);
@@ -110,14 +120,24 @@ public class ControlPanelGUI {
     private JPanel crearTabControl() {
         JPanel tab = new JPanel(new BorderLayout());
 
-        JPanel panelSensors = new JPanel(new GridLayout(2, 1));
+        JPanel panelSensors = new JPanel(new BorderLayout());
         panelSensors.setBorder(BorderFactory.createEmptyBorder(20, 20, 10, 20));
+
+        JPanel panelTempHum = new JPanel(new GridLayout(2, 1));
         lblTemp = new JLabel("Temperatura: -- °C", SwingConstants.CENTER);
         lblTemp.setFont(new Font("Arial", Font.BOLD, 24));
         lblHum = new JLabel("Humedad: -- %", SwingConstants.CENTER);
         lblHum.setFont(new Font("Arial", Font.BOLD, 24));
-        panelSensors.add(lblTemp);
-        panelSensors.add(lblHum);
+        panelTempHum.add(lblTemp);
+        panelTempHum.add(lblHum);
+        panelSensors.add(panelTempHum, BorderLayout.CENTER);
+
+        lblArduinoStatus = new JLabel("● Arduino: Desconectado", SwingConstants.RIGHT);
+        lblArduinoStatus.setFont(new Font("Arial", Font.BOLD, 14));
+        lblArduinoStatus.setForeground(Color.RED);
+        lblArduinoStatus.setToolTipText("Estado de la conexión del Arduino (ESP32) vía WebSocket");
+        panelSensors.add(lblArduinoStatus, BorderLayout.EAST);
+
         tab.add(panelSensors, BorderLayout.NORTH);
 
         JPanel panelRelays = new JPanel(new GridLayout(2, 3, 10, 10));

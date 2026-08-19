@@ -37,7 +37,7 @@ class ApiControllerTest {
         mockMvc.perform(get("/api/state"))
             .andExpect(status().isOk())
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-            .andExpect(content().string("{\"temp\": 25.5, \"hum\": 40.0, \"relays\": [true, false, false, false, false, false], \"overrides\": [false, false, false, false, false, false]}"));
+            .andExpect(content().string("{\"connected\": false, \"temp\": 25.5, \"hum\": 40.0, \"relays\": [true, false, false, false, false, false], \"overrides\": [false, false, false, false, false, false]}"));
     }
 
     @Test
