@@ -12,6 +12,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.FlowLayout;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
@@ -29,7 +30,9 @@ public class StatsPanel extends JPanel {
     private final JLabel lblStatus;
     private final JTable table;
     private final DefaultTableModel tableModel;
-    private ChartPanel chartPanel;
+    private final CardLayout cards;
+    private final JPanel center;
+    private final ChartPanel chartPanel;
     private boolean refreshing = false;
 
     public StatsPanel(BackendClient client) {
@@ -45,11 +48,7 @@ public class StatsPanel extends JPanel {
         topBar.add(lblStatus);
         add(topBar, BorderLayout.NORTH);
 
-        JPanel placeholder = new JPanel();
-        placeholder.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        JLabel hint = new JLabel("Calculando estadísticas de los últimos 30 días...");
-        placeholder.add(hint);
-        add(placeholder, BorderLayout.CENTER);
+        chartPanel = Charts.createHourlyProfileChart();
 
         tableModel = new DefaultTableModel(
                 new Object[]{"Periodo", "Media (°C)", "Mín (°C)", "Máx (°C)", "Humedad media (%)", "Registros"}, 0) {
@@ -59,7 +58,11 @@ public class StatsPanel extends JPanel {
             }
         };
         table = new JTable(tableModel);
-        add(new JScrollPane(table), BorderLayout.SOUTH);
+
+        center = new JPanel(cards = new CardLayout());
+        center.add(chartPanel, "chart");
+        center.add(new JScrollPane(table), "list");
+        add(center, BorderLayout.CENTER);
 
         addComponentListener(new ComponentAdapter() {
             @Override
@@ -92,11 +95,7 @@ public class StatsPanel extends JPanel {
                         from.minusYears(1).format(ISO), to.minusYears(1).format(ISO));
 
                 SwingUtilities.invokeLater(() -> {
-                    if (chartPanel != null) {
-                        remove(chartPanel);
-                    }
-                    chartPanel = Charts.createHourlyProfileChart(current, previous);
-                    add(chartPanel, BorderLayout.CENTER);
+                    Charts.updateHourlyProfileChart(chartPanel, current, previous);
 
                     tableModel.setRowCount(0);
                     tableModel.addRow(filaPeriodo("Últimos 30 días", currentSummary));

@@ -11,14 +11,15 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
-import javax.swing.event.ChangeListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.FlowLayout;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.Comparator;
@@ -38,7 +39,9 @@ public class HistoryPanel extends JPanel {
     private final JLabel lblStatus;
     private final DefaultTableModel tableModel;
     private final JTable table;
-    private ChartPanel chartPanel;
+    private final CardLayout cards;
+    private final JPanel center;
+    private final ChartPanel chartPanel;
     private boolean refreshing = false;
 
     public HistoryPanel(BackendClient client) {
@@ -48,7 +51,7 @@ public class HistoryPanel extends JPanel {
         JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT));
         topBar.add(new JLabel("Vista:"));
         comboMode = new JComboBox<>(MODES);
-        comboMode.addActionListener(e -> refresh());
+        comboMode.addActionListener(e -> mostrarVista());
         topBar.add(comboMode);
 
         topBar.add(new JLabel("Máx registros:"));
@@ -74,11 +77,11 @@ public class HistoryPanel extends JPanel {
         };
         table = new JTable(tableModel);
 
-        JPanel placeholder = new JPanel();
-        placeholder.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        JLabel hint = new JLabel("Cargando historial (últimas 24 horas)...");
-        placeholder.add(hint);
-        add(placeholder, BorderLayout.CENTER);
+        chartPanel = Charts.createHistoryChart();
+        center = new JPanel(cards = new CardLayout());
+        center.add(chartPanel, "chart");
+        center.add(new JScrollPane(table), "list");
+        add(center, BorderLayout.CENTER);
 
         addComponentListener(new ComponentAdapter() {
             @Override
@@ -89,6 +92,12 @@ public class HistoryPanel extends JPanel {
 
         Timer autoTimer = new Timer(5000, e -> refresh());
         autoTimer.start();
+        refresh();
+    }
+
+    private void mostrarVista() {
+        boolean listMode = "Lista".equals(comboMode.getSelectedItem());
+        cards.show(center, listMode ? "list" : "chart");
         refresh();
     }
 
@@ -131,22 +140,15 @@ public class HistoryPanel extends JPanel {
     }
 
     private void mostrarGrafica(List<BackendClient.HistoryPoint> points, LocalDateTime from, LocalDateTime to) {
-        if (chartPanel != null) {
-            remove(chartPanel);
-        }
-        chartPanel = Charts.createHistoryChart(points,
-                from.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                to.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli());
-        add(chartPanel, BorderLayout.CENTER);
+        Charts.updateHistoryChart(chartPanel, points,
+                from.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                to.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
+        cards.show(center, "chart");
         revalidate();
         repaint();
     }
 
     private void mostrarLista(List<BackendClient.HistoryPoint> points) {
-        if (chartPanel != null) {
-            remove(chartPanel);
-            chartPanel = null;
-        }
         tableModel.setRowCount(0);
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
         SimpleDateFormat shf = new SimpleDateFormat("HH:mm:ss");
@@ -159,9 +161,7 @@ public class HistoryPanel extends JPanel {
                     String.format("%.1f", p.hum)
             });
         }
-        if (table.getParent() == null) {
-            add(new JScrollPane(table), BorderLayout.CENTER);
-        }
+        cards.show(center, "list");
         revalidate();
         repaint();
     }
