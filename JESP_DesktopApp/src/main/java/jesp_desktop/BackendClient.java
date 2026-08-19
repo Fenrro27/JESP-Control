@@ -1,10 +1,19 @@
 package jesp_desktop;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 
 public class BackendClient {
     private String baseUrl;
@@ -29,20 +38,6 @@ public class BackendClient {
     public void setServerIp(String ip) {
         ConfigManager.setServerIp(ip);
         this.baseUrl = "http://" + ip + "/api";
-    }
-
-    public String getHistory() throws Exception {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/history?limit=100"))
-                .GET()
-                .build();
-        
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() == 200) {
-            return response.body();
-        } else {
-            throw new Exception("HTTP status " + response.statusCode());
-        }
     }
 
     public String getRules() throws Exception {
@@ -162,6 +157,101 @@ public class BackendClient {
             httpClient.send(request, HttpResponse.BodyHandlers.discarding());
         } catch (Exception e) {
             System.err.println("Error enviando comando resetOverrides al servidor: " + e.getMessage());
+        }
+    }
+
+    public List<HistoryPoint> getHistoryChartData(int limit) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/history?limit=" + limit))
+                .GET()
+                .build();
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            throw new Exception("HTTP status " + response.statusCode());
+        }
+        JSONArray arr = new JSONArray(response.body());
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        List<HistoryPoint> points = new ArrayList<>();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject o = arr.getJSONObject(i);
+            HistoryPoint p = new HistoryPoint();
+            LocalDateTime ts = LocalDateTime.parse(o.getString("timestamp"), formatter);
+            p.timestampMillis = ts.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+            p.temp = o.getDouble("temp");
+            p.hum = o.getDouble("hum");
+            points.add(p);
+        }
+        return points;
+    }
+
+    public List<HourStat> getHourlyStats(String from, String to) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/stats/hourly?from=" + from + "&to=" + to))
+                .GET()
+                .build();
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            throw new Exception("HTTP status " + response.statusCode());
+        }
+        JSONArray arr = new JSONArray(response.body());
+        List<HourStat> stats = new ArrayList<>();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject o = arr.getJSONObject(i);
+            HourStat s = new HourStat();
+            s.hour = o.getInt("hour");
+            s.avgTemp = o.isNull("avgTemp") ? null : o.getDouble("avgTemp");
+            s.minTemp = o.isNull("minTemp") ? null : o.getDouble("minTemp");
+            s.maxTemp = o.isNull("maxTemp") ? null : o.getDouble("maxTemp");
+            s.avgHum = o.isNull("avgHum") ? null : o.getDouble("avgHum");
+            s.records = o.getLong("records");
+            stats.add(s);
+        }
+        return stats;
+    }
+
+    public Summary getSummary(String from, String to) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/stats/summary?from=" + from + "&to=" + to))
+                .GET()
+                .build();
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            throw new Exception("HTTP status " + response.statusCode());
+        }
+        JSONObject o = new JSONObject(response.body());
+        Summary s = new Summary();
+        s.avgTemp = o.isNull("avgTemp") ? null : o.getDouble("avgTemp");
+        s.minTemp = o.isNull("minTemp") ? null : o.getDouble("minTemp");
+        s.maxTemp = o.isNull("maxTemp") ? null : o.getDouble("maxTemp");
+        s.avgHum = o.isNull("avgHum") ? null : o.getDouble("avgHum");
+        s.records = o.getLong("records");
+        return s;
+    }
+
+    public static class HistoryPoint {
+        public long timestampMillis;
+        public double temp;
+        public double hum;
+    }
+
+    public static class HourStat {
+        public int hour;
+        public Double avgTemp;
+        public Double minTemp;
+        public Double maxTemp;
+        public Double avgHum;
+        public long records;
+    }
+
+    public static class Summary {
+        public Double avgTemp;
+        public Double minTemp;
+        public Double maxTemp;
+        public Double avgHum;
+        public long records;
+
+        public boolean isEmpty() {
+            return records == 0 || avgTemp == null;
         }
     }
 }
