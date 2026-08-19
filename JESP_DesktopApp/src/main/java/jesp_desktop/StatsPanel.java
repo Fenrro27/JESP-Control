@@ -8,6 +8,8 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
@@ -26,6 +28,7 @@ public class StatsPanel extends JPanel {
     private final JTable table;
     private final DefaultTableModel tableModel;
     private ChartPanel chartPanel;
+    private boolean refreshing = false;
 
     public StatsPanel(BackendClient client) {
         this.client = client;
@@ -42,7 +45,7 @@ public class StatsPanel extends JPanel {
 
         JPanel placeholder = new JPanel();
         placeholder.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        JLabel hint = new JLabel("Pulsa \"Actualizar\" para calcular las estadísticas de los últimos 30 días.");
+        JLabel hint = new JLabel("Calculando estadísticas de los últimos 30 días...");
         placeholder.add(hint);
         add(placeholder, BorderLayout.CENTER);
 
@@ -55,43 +58,60 @@ public class StatsPanel extends JPanel {
         };
         table = new JTable(tableModel);
         add(new JScrollPane(table), BorderLayout.SOUTH);
+
+        Timer autoTimer = new Timer(10000, e -> refresh());
+        autoTimer.start();
+        refresh();
     }
 
     public void refresh() {
-        try {
-            LocalDateTime to = LocalDateTime.now();
-            LocalDateTime from = LocalDate.now().minusDays(30).atStartOfDay();
-
-            List<BackendClient.HourStat> current = client.getHourlyStats(from.format(ISO), to.format(ISO));
-            List<BackendClient.HourStat> previous = client.getHourlyStats(
-                    from.minusYears(1).format(ISO), to.minusYears(1).format(ISO));
-            BackendClient.Summary currentSummary = client.getSummary(from.format(ISO), to.format(ISO));
-            BackendClient.Summary previousSummary = client.getSummary(
-                    from.minusYears(1).format(ISO), to.minusYears(1).format(ISO));
-
-            if (chartPanel != null) {
-                remove(chartPanel);
-            }
-            chartPanel = Charts.createHourlyProfileChart(current, previous);
-            add(chartPanel, BorderLayout.CENTER);
-
-            tableModel.setRowCount(0);
-            tableModel.addRow(filaPeriodo("Últimos 30 días", currentSummary));
-            tableModel.addRow(filaPeriodo("Año anterior", previousSummary));
-            if (!currentSummary.isEmpty() && !previousSummary.isEmpty()) {
-                tableModel.addRow(filaDelta(currentSummary, previousSummary));
-            }
-
-            lblStatus.setText("Periodo: " + from.toLocalDate() + " → " + to.toLocalDate()
-                    + "  |  Año anterior: " + from.minusYears(1).toLocalDate() + " → " + to.minusYears(1).toLocalDate());
-            lblStatus.setForeground(new java.awt.Color(0, 150, 0));
-
-            revalidate();
-            repaint();
-        } catch (Exception ex) {
-            lblStatus.setText("Error calculando estadísticas: " + ex.getMessage());
-            lblStatus.setForeground(java.awt.Color.RED);
+        if (refreshing) {
+            return;
         }
+        refreshing = true;
+
+        new Thread(() -> {
+            try {
+                LocalDateTime to = LocalDateTime.now();
+                LocalDateTime from = LocalDate.now().minusDays(30).atStartOfDay();
+
+                List<BackendClient.HourStat> current = client.getHourlyStats(from.format(ISO), to.format(ISO));
+                List<BackendClient.HourStat> previous = client.getHourlyStats(
+                        from.minusYears(1).format(ISO), to.minusYears(1).format(ISO));
+                BackendClient.Summary currentSummary = client.getSummary(from.format(ISO), to.format(ISO));
+                BackendClient.Summary previousSummary = client.getSummary(
+                        from.minusYears(1).format(ISO), to.minusYears(1).format(ISO));
+
+                SwingUtilities.invokeLater(() -> {
+                    if (chartPanel != null) {
+                        remove(chartPanel);
+                    }
+                    chartPanel = Charts.createHourlyProfileChart(current, previous);
+                    add(chartPanel, BorderLayout.CENTER);
+
+                    tableModel.setRowCount(0);
+                    tableModel.addRow(filaPeriodo("Últimos 30 días", currentSummary));
+                    tableModel.addRow(filaPeriodo("Año anterior", previousSummary));
+                    if (!currentSummary.isEmpty() && !previousSummary.isEmpty()) {
+                        tableModel.addRow(filaDelta(currentSummary, previousSummary));
+                    }
+
+                    lblStatus.setText("Periodo: " + from.toLocalDate() + " → " + to.toLocalDate()
+                            + "  |  Año anterior: " + from.minusYears(1).toLocalDate() + " → " + to.minusYears(1).toLocalDate());
+                    lblStatus.setForeground(new java.awt.Color(0, 150, 0));
+
+                    revalidate();
+                    repaint();
+                });
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() -> {
+                    lblStatus.setText("Error calculando estadísticas: " + ex.getMessage());
+                    lblStatus.setForeground(java.awt.Color.RED);
+                });
+            } finally {
+                refreshing = false;
+            }
+        }).start();
     }
 
     private static Object[] filaPeriodo(String nombre, BackendClient.Summary s) {

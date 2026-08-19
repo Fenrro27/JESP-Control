@@ -9,13 +9,14 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -35,6 +36,7 @@ public class HistoryPanel extends JPanel {
     private final DefaultTableModel tableModel;
     private final JTable table;
     private ChartPanel chartPanel;
+    private boolean refreshing = false;
 
     public HistoryPanel(BackendClient client) {
         this.client = client;
@@ -70,40 +72,54 @@ public class HistoryPanel extends JPanel {
 
         JPanel placeholder = new JPanel();
         placeholder.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        JLabel hint = new JLabel("Pulsa \"Actualizar\" para cargar el historial (últimas 24 horas).");
+        JLabel hint = new JLabel("Cargando historial (últimas 24 horas)...");
         placeholder.add(hint);
         add(placeholder, BorderLayout.CENTER);
+
+        Timer autoTimer = new Timer(5000, e -> refresh());
+        autoTimer.start();
+        refresh();
     }
 
     public void refresh() {
-        try {
-            int limit = (Integer) comboLimit.getSelectedItem();
-            LocalDateTime to = LocalDateTime.now();
-            LocalDateTime from = to.minusHours(24);
-
-            List<BackendClient.HistoryPoint> points =
-                    client.getHistoryChartData(limit, from.format(ISO), to.format(ISO));
-            Collections.sort(points, Comparator.comparingLong(p -> p.timestampMillis));
-
-            if ("Lista".equals(comboMode.getSelectedItem())) {
-                mostrarLista(points);
-            } else {
-                mostrarGrafica(points, from, to);
-            }
-
-            lblStatus.setText("Cargados " + points.size() + " registros (" + from.toLocalDate()
-                    + " " + from.toLocalTime().withNano(0) + " → " + to.toLocalTime().withNano(0) + ")");
-            lblStatus.setForeground(new java.awt.Color(0, 150, 0));
-        } catch (Exception ex) {
-            lblStatus.setText("Error cargando historial: " + ex.getMessage());
-            lblStatus.setForeground(java.awt.Color.RED);
+        if (refreshing) {
+            return;
         }
+        refreshing = true;
+        final int limit = (Integer) comboLimit.getSelectedItem();
+        final boolean listMode = "Lista".equals(comboMode.getSelectedItem());
+
+        new Thread(() -> {
+            try {
+                LocalDateTime to = LocalDateTime.now();
+                LocalDateTime from = to.minusHours(24);
+
+                List<BackendClient.HistoryPoint> points =
+                        client.getHistoryChartData(limit, from.format(ISO), to.format(ISO));
+                Collections.sort(points, Comparator.comparingLong(p -> p.timestampMillis));
+
+                SwingUtilities.invokeLater(() -> {
+                    if (listMode) {
+                        mostrarLista(points);
+                    } else {
+                        mostrarGrafica(points, from, to);
+                    }
+                    lblStatus.setText("Cargados " + points.size() + " registros (" + from.toLocalDate()
+                            + " " + from.toLocalTime().withNano(0) + " → " + to.toLocalTime().withNano(0) + ")");
+                    lblStatus.setForeground(new java.awt.Color(0, 150, 0));
+                });
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() -> {
+                    lblStatus.setText("Error cargando historial: " + ex.getMessage());
+                    lblStatus.setForeground(java.awt.Color.RED);
+                });
+            } finally {
+                refreshing = false;
+            }
+        }).start();
     }
 
     private void mostrarGrafica(List<BackendClient.HistoryPoint> points, LocalDateTime from, LocalDateTime to) {
-        if (table.getParent() != null) {
-            remove(table.getParent());
-        }
         if (chartPanel != null) {
             remove(chartPanel);
         }
@@ -132,9 +148,8 @@ public class HistoryPanel extends JPanel {
                     String.format("%.1f", p.hum)
             });
         }
-        JScrollPane scroll = new JScrollPane(table);
         if (table.getParent() == null) {
-            add(scroll, BorderLayout.CENTER);
+            add(new JScrollPane(table), BorderLayout.CENTER);
         }
         revalidate();
         repaint();
