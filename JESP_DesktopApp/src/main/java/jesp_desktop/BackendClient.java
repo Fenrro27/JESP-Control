@@ -237,6 +237,24 @@ public class BackendClient {
         return s;
     }
 
+    public Trend getTrend(String from, String to) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(baseUrl + "/stats/trend?from=" + from + "&to=" + to))
+                .GET()
+                .build();
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() != 200) {
+            throw new Exception("HTTP status " + response.statusCode());
+        }
+        JSONObject o = new JSONObject(response.body());
+        Trend t = new Trend();
+        t.slopePerHour = o.getDouble("slopePerHour");
+        t.delta = o.getDouble("delta");
+        t.direction = o.getString("direction");
+        t.samples = o.getLong("samples");
+        return t;
+    }
+
     public static class HistoryPoint {
         public long timestampMillis;
         public double temp;
@@ -262,5 +280,12 @@ public class BackendClient {
         public boolean isEmpty() {
             return records == 0 || avgTemp == null;
         }
+    }
+
+    public static class Trend {
+        public double slopePerHour;
+        public double delta;
+        public String direction;
+        public long samples;
     }
 }

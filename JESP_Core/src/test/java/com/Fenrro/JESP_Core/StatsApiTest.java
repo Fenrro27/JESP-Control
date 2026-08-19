@@ -99,4 +99,34 @@ class StatsApiTest {
             .andExpect(jsonPath("$.avgTemp").value(org.hamcrest.Matchers.nullValue()))
             .andExpect(jsonPath("$.records").value(0));
     }
+
+    @Test
+    void trendDetectsRisingTemperature() throws Exception {
+        LocalDateTime start = rangeStart();
+        seed(start.plusMinutes(10), 20.0f, 40.0f);
+        seed(start.plusMinutes(40), 22.0f, 40.0f);
+        seed(start.plusHours(1).plusMinutes(10), 25.0f, 40.0f);
+        seed(start.plusHours(1).plusMinutes(40), 27.0f, 40.0f);
+
+        mockMvc.perform(get("/api/stats/trend")
+                .param("from", start.format(ISO))
+                .param("to", start.plusHours(3).format(ISO)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.direction").value("subiendo"))
+            .andExpect(jsonPath("$.slopePerHour").value(org.hamcrest.Matchers.greaterThan(0.0)))
+            .andExpect(jsonPath("$.delta").value(7.0))
+            .andExpect(jsonPath("$.samples").value(4));
+    }
+
+    @Test
+    void trendWithoutDataReturnsSinDatos() throws Exception {
+        LocalDateTime start = rangeStart();
+
+        mockMvc.perform(get("/api/stats/trend")
+                .param("from", start.format(ISO))
+                .param("to", start.plusHours(3).format(ISO)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.direction").value("sin datos"))
+            .andExpect(jsonPath("$.samples").value(0));
+    }
 }

@@ -145,6 +145,15 @@ public class ApiController {
              + ",\"records\":" + row.getRecords() + "}";
     }
 
+    @GetMapping(value = "/stats/trend", produces = MediaType.APPLICATION_JSON_VALUE)
+    public String trendStats(@RequestParam String from, @RequestParam String to) {
+        HistoryService.TrendResult trend = historyService.getTrend(LocalDateTime.parse(from), LocalDateTime.parse(to));
+        return "{\"slopePerHour\":" + trend.slopePerHour()
+             + ",\"delta\":" + trend.delta()
+             + ",\"direction\":\"" + trend.direction()
+             + "\",\"samples\":" + trend.samples() + "}";
+    }
+
     private static String num(Double value) {
         return value == null ? "null" : value.toString();
     }
