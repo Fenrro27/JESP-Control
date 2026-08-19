@@ -13,6 +13,8 @@ import javax.swing.Timer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -58,6 +60,13 @@ public class StatsPanel extends JPanel {
         };
         table = new JTable(tableModel);
         add(new JScrollPane(table), BorderLayout.SOUTH);
+
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentShown(ComponentEvent e) {
+                refresh();
+            }
+        });
 
         Timer autoTimer = new Timer(10000, e -> refresh());
         autoTimer.start();

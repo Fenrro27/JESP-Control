@@ -11,9 +11,12 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
+import javax.swing.event.ChangeListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -45,6 +48,7 @@ public class HistoryPanel extends JPanel {
         JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT));
         topBar.add(new JLabel("Vista:"));
         comboMode = new JComboBox<>(MODES);
+        comboMode.addActionListener(e -> refresh());
         topBar.add(comboMode);
 
         topBar.add(new JLabel("Máx registros:"));
@@ -75,6 +79,13 @@ public class HistoryPanel extends JPanel {
         JLabel hint = new JLabel("Cargando historial (últimas 24 horas)...");
         placeholder.add(hint);
         add(placeholder, BorderLayout.CENTER);
+
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentShown(ComponentEvent e) {
+                refresh();
+            }
+        });
 
         Timer autoTimer = new Timer(5000, e -> refresh());
         autoTimer.start();
