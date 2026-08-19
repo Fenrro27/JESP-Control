@@ -36,6 +36,11 @@ public class HistoryService {
     }
 
     @Transactional(readOnly = true)
+    public List<SensorHistory> getSensorHistoryBetween(LocalDateTime from, LocalDateTime to, int limit) {
+        return sensorHistoryRepository.findBetween(toEpochMillis(from), toEpochMillis(to), limit);
+    }
+
+    @Transactional(readOnly = true)
     public List<SensorHistoryRepository.HourlyStat> getHourlyProfile(LocalDateTime from, LocalDateTime to) {
         return sensorHistoryRepository.findHourlyProfile(toEpochMillis(from), toEpochMillis(to));
     }

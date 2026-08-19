@@ -169,9 +169,9 @@ public class BackendClient {
         }
     }
 
-    public List<HistoryPoint> getHistoryChartData(int limit) throws Exception {
+    public List<HistoryPoint> getHistoryChartData(int limit, String from, String to) throws Exception {
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/history?limit=" + limit))
+                .uri(URI.create(baseUrl + "/history?limit=" + limit + "&from=" + from + "&to=" + to))
                 .GET()
                 .build();
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());

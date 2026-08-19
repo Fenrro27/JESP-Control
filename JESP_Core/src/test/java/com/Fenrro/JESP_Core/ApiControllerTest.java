@@ -75,6 +75,25 @@ class ApiControllerTest {
     }
 
     @Test
+    void historyFiltersByDateRange() throws Exception {
+        deviceState.setTempAndHum(21.0f, 50.0f);
+
+        mockMvc.perform(get("/api/history")
+                .param("from", "2000-01-01T00:00:00")
+                .param("to", "2099-01-01T00:00:00")
+                .param("limit", "100"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    void historyFromWithoutToStillWorks() throws Exception {
+        mockMvc.perform(get("/api/history").param("from", "2000-01-01T00:00:00"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
     void rulesRoundTrip() throws Exception {
         String content = "RELAY=1\nACTION=ON\n---\n";
 

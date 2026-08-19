@@ -85,8 +85,15 @@ public class ApiController {
     }
 
     @GetMapping(value = "/history", produces = MediaType.APPLICATION_JSON_VALUE)
-    public String history(@RequestParam(defaultValue = "100") int limit) {
-        List<SensorHistory> rows = historyService.getRecentSensorHistory(limit);
+    public String history(@RequestParam(defaultValue = "100") int limit,
+                          @RequestParam(required = false) String from,
+                          @RequestParam(required = false) String to) {
+        List<SensorHistory> rows;
+        if (from != null && to != null) {
+            rows = historyService.getSensorHistoryBetween(LocalDateTime.parse(from), LocalDateTime.parse(to), limit);
+        } else {
+            rows = historyService.getRecentSensorHistory(limit);
+        }
         StringBuilder sb = new StringBuilder();
         sb.append("[");
         for (int i = 0; i < rows.size(); i++) {

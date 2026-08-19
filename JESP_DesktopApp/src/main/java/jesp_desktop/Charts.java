@@ -16,7 +16,7 @@ import java.util.List;
 
 public class Charts {
 
-    public static ChartPanel createHistoryChart(List<BackendClient.HistoryPoint> points) {
+    public static ChartPanel createHistoryChart(List<BackendClient.HistoryPoint> points, long fromMillis, long toMillis) {
         XYSeries tempSeries = new XYSeries("Temperatura (°C)");
         XYSeries humSeries = new XYSeries("Humedad (%)");
         for (BackendClient.HistoryPoint p : points) {
@@ -47,6 +47,7 @@ public class Charts {
 
         DateAxis axis = new DateAxis("Fecha/Hora");
         axis.setDateFormatOverride(new SimpleDateFormat("dd/MM HH:mm"));
+        axis.setRange(fromMillis, toMillis);
         plot.setDomainAxis(axis);
 
         return new ChartPanel(chart);

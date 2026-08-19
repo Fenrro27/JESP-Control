@@ -13,6 +13,15 @@ public interface SensorHistoryRepository extends JpaRepository<SensorHistory, Lo
     List<SensorHistory> findAllByOrderByIdDesc(Pageable pageable);
 
     @Query(value = """
+            SELECT * FROM sensor_history
+            WHERE timestamp >= :fromMs AND timestamp <= :toMs
+            ORDER BY id DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<SensorHistory> findBetween(@Param("fromMs") long fromMs, @Param("toMs") long toMs,
+                                    @Param("limit") int limit);
+
+    @Query(value = """
             SELECT CAST(strftime('%H', timestamp / 1000.0, 'unixepoch', 'localtime') AS INTEGER) AS hour,
                    AVG(temperature) AS avgTemp,
                    MIN(temperature) AS minTemp,

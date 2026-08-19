@@ -3,24 +3,37 @@ package jesp_desktop;
 import org.jfree.chart.ChartPanel;
 
 import javax.swing.BorderFactory;
-import javax.swing.Box;
-import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
+import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
+import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 
 public class HistoryPanel extends JPanel {
 
     private static final Integer[] LIMITS = {100, 500, 1000};
+    private static final String[] MODES = {"Gráfica", "Lista"};
+    private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     private final BackendClient client;
+    private final JComboBox<String> comboMode;
     private final JComboBox<Integer> comboLimit;
     private final JButton btnActualizar;
     private final JLabel lblStatus;
+    private final DefaultTableModel tableModel;
+    private final JTable table;
     private ChartPanel chartPanel;
 
     public HistoryPanel(BackendClient client) {
@@ -28,7 +41,11 @@ public class HistoryPanel extends JPanel {
         setLayout(new BorderLayout());
 
         JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        topBar.add(new JLabel("Registros:"));
+        topBar.add(new JLabel("Vista:"));
+        comboMode = new JComboBox<>(MODES);
+        topBar.add(comboMode);
+
+        topBar.add(new JLabel("Máx registros:"));
         comboLimit = new JComboBox<>(LIMITS);
         comboLimit.setSelectedItem(500);
         topBar.add(comboLimit);
@@ -42,33 +59,84 @@ public class HistoryPanel extends JPanel {
 
         add(topBar, BorderLayout.NORTH);
 
+        tableModel = new DefaultTableModel(
+                new Object[]{"Fecha", "Hora", "Temperatura (°C)", "Humedad (%)"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        table = new JTable(tableModel);
+
         JPanel placeholder = new JPanel();
         placeholder.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-        placeholder.setLayout(new BoxLayout(placeholder, BoxLayout.Y_AXIS));
-        placeholder.add(Box.createVerticalGlue());
-        JLabel hint = new JLabel("Pulsa \"Actualizar\" para cargar el historial.");
-        hint.setAlignmentX(CENTER_ALIGNMENT);
+        JLabel hint = new JLabel("Pulsa \"Actualizar\" para cargar el historial (últimas 24 horas).");
         placeholder.add(hint);
-        placeholder.add(Box.createVerticalGlue());
         add(placeholder, BorderLayout.CENTER);
     }
 
     public void refresh() {
         try {
             int limit = (Integer) comboLimit.getSelectedItem();
-            List<BackendClient.HistoryPoint> points = client.getHistoryChartData(limit);
-            if (chartPanel != null) {
-                remove(chartPanel);
+            LocalDateTime to = LocalDateTime.now();
+            LocalDateTime from = to.minusHours(24);
+
+            List<BackendClient.HistoryPoint> points =
+                    client.getHistoryChartData(limit, from.format(ISO), to.format(ISO));
+            Collections.sort(points, Comparator.comparingLong(p -> p.timestampMillis));
+
+            if ("Lista".equals(comboMode.getSelectedItem())) {
+                mostrarLista(points);
+            } else {
+                mostrarGrafica(points, from, to);
             }
-            chartPanel = Charts.createHistoryChart(points);
-            add(chartPanel, BorderLayout.CENTER);
-            lblStatus.setText("Cargados " + points.size() + " registros");
+
+            lblStatus.setText("Cargados " + points.size() + " registros (" + from.toLocalDate()
+                    + " " + from.toLocalTime().withNano(0) + " → " + to.toLocalTime().withNano(0) + ")");
             lblStatus.setForeground(new java.awt.Color(0, 150, 0));
-            revalidate();
-            repaint();
         } catch (Exception ex) {
             lblStatus.setText("Error cargando historial: " + ex.getMessage());
             lblStatus.setForeground(java.awt.Color.RED);
         }
+    }
+
+    private void mostrarGrafica(List<BackendClient.HistoryPoint> points, LocalDateTime from, LocalDateTime to) {
+        if (table.getParent() != null) {
+            remove(table.getParent());
+        }
+        if (chartPanel != null) {
+            remove(chartPanel);
+        }
+        chartPanel = Charts.createHistoryChart(points,
+                from.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                to.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli());
+        add(chartPanel, BorderLayout.CENTER);
+        revalidate();
+        repaint();
+    }
+
+    private void mostrarLista(List<BackendClient.HistoryPoint> points) {
+        if (chartPanel != null) {
+            remove(chartPanel);
+            chartPanel = null;
+        }
+        tableModel.setRowCount(0);
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+        SimpleDateFormat shf = new SimpleDateFormat("HH:mm:ss");
+        for (BackendClient.HistoryPoint p : points) {
+            Date d = new Date(p.timestampMillis);
+            tableModel.addRow(new Object[]{
+                    sdf.format(d),
+                    shf.format(d),
+                    String.format("%.1f", p.temp),
+                    String.format("%.1f", p.hum)
+            });
+        }
+        JScrollPane scroll = new JScrollPane(table);
+        if (table.getParent() == null) {
+            add(scroll, BorderLayout.CENTER);
+        }
+        revalidate();
+        repaint();
     }
 }
