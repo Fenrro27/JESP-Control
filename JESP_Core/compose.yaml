@@ -11,6 +11,13 @@ services:
       JESP_DB_PATH: /app/data/jesp_data.db
       JESP_RULES_FILE: /app/data/rules.conf
       TZ: Europe/Madrid
+      # Autenticacion (obligatorio configurar en produccion)
+      JESP_JWT_SECRET: ${JESP_JWT_SECRET:-cambia-este-secreto-por-uno-largo-y-aleatorio}
+      JESP_ADMIN_PASSWORD: ${JESP_ADMIN_PASSWORD:-}
+      JESP_CORS_ORIGINS: ${JESP_CORS_ORIGINS:-http://localhost:5173}
+      # Motor de reglas
+      JESP_SENSOR_STALENESS: ${JESP_SENSOR_STALENESS:-300}
+      JESP_STALE_FAILSAFE: ${JESP_STALE_FAILSAFE:-OFF}
     volumes:
       - jesp-data:/app/data
     restart: unless-stopped

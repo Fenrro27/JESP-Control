@@ -18,4 +18,6 @@ La aplicación de escritorio se conecta de forma remota al `JESP_Core` a través
 
 1. Asegúrate de que el servidor `JESP_Core` esté en ejecución.
 2. Compila y ejecuta el proyecto `JESP_DesktopApp` desde tu IDE (ejecutando la clase principal `jesp_desktop.DesktopMain`) o mediante Maven.
-3. Al iniciar, la aplicación intentará conectarse mediante HTTP a la dirección del servidor backend configurada (por defecto a `127.0.0.1:5001` consumiendo la API de escritorio).
+3. Al iniciar se mostrará un **diálogo de login**: introduce un usuario válido del backend (`admin` por defecto; la contraseña se configura con `JESP_ADMIN_PASSWORD` en el servidor). El rol `ADMIN` permite controlar relés y gestionar reglas; el rol `USER` solo consulta.
+4. La aplicación intentará conectarse mediante HTTP a la dirección del servidor configurada (por defecto a `127.0.0.1:5001` consumiendo la API de escritorio).
+5. La pestaña **Reglas** gestiona las reglas de automatización contra la API JSON: crear, editar, activar/desactivar y eliminar, con soporte de histéresis, prioridad, cooldown y días de semana.

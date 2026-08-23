@@ -57,7 +57,6 @@ public class StatsPanel extends JPanel {
 
         JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT));
         JComboBox<String> comboVista = new JComboBox<>(new String[]{"Resumen", "Gráfica"});
-        comboVista.addActionListener(e -> cards.show(center, comboVista.getSelectedItem().equals("Gráfica") ? "grafica" : "resumen"));
         topBar.add(new JLabel("Vista:"));
         topBar.add(comboVista);
 
@@ -130,6 +129,10 @@ public class StatsPanel extends JPanel {
         center.add(resumen, "resumen");
         center.add(chartPanel, "grafica");
         add(center, BorderLayout.CENTER);
+
+        // Registrado aquí: cards y center deben estar inicializados antes de usarse
+        comboVista.addActionListener(e ->
+                cards.show(center, comboVista.getSelectedItem().equals("Gráfica") ? "grafica" : "resumen"));
 
         addComponentListener(new ComponentAdapter() {
             @Override

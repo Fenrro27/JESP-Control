@@ -18,12 +18,13 @@ import java.util.List;
 public class BackendClient {
     private String baseUrl;
     private final HttpClient httpClient;
-    
+    private String token;
+
     public float temp = 0.0f;
     public float hum = 0.0f;
     public boolean[] relays = new boolean[6];
     public boolean[] overrides = new boolean[6];
-    
+
     public boolean isConnected = false;
     public boolean arduinoConnected = false;
     public Runnable onConnectionChange;
@@ -41,31 +42,81 @@ public class BackendClient {
         this.baseUrl = "http://" + ip + "/api";
     }
 
-    public String getRules() throws Exception {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/rules"))
-                .GET()
-                .build();
-        
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() == 200) {
-            return response.body();
-        } else {
-            throw new Exception("HTTP status " + response.statusCode());
-        }
-    }
+    // ---------- Autenticación ----------
 
-    public void saveRules(String rulesText) throws Exception {
+    /** Autentica contra el backend y guarda el token JWT en memoria. */
+    public void login(String username, String password) throws Exception {
+        JSONObject body = new JSONObject()
+                .put("username", username)
+                .put("password", password);
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/rules"))
-                .header("Content-Type", "text/plain; charset=UTF-8")
-                .POST(HttpRequest.BodyPublishers.ofString(rulesText))
+                .uri(URI.create(baseUrl + "/auth/login"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
                 .build();
-        
+
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() == 401) {
+            throw new Exception("Usuario o contraseña incorrectos");
+        }
         if (response.statusCode() != 200) {
             throw new Exception("HTTP status " + response.statusCode());
         }
+        this.token = new JSONObject(response.body()).getString("token");
+    }
+
+    public boolean isLoggedIn() {
+        return token != null;
+    }
+
+    private HttpRequest.Builder authorized(String url) {
+        HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(url));
+        if (token != null) {
+            builder.header("Authorization", "Bearer " + token);
+        }
+        return builder;
+    }
+
+    private void requireOk(HttpResponse<String> response) throws Exception {
+        if (response.statusCode() == 401) {
+            throw new Exception("Sesión expirada: vuelve a iniciar sesión");
+        }
+        if (response.statusCode() != 200) {
+            throw new Exception("HTTP status " + response.statusCode() + ": " + response.body());
+        }
+    }
+
+    // ---------- Reglas (API JSON) ----------
+
+    /** Devuelve la lista de reglas como JSONArray en texto. */
+    public String getRulesJson() throws Exception {
+        HttpRequest request = authorized(baseUrl + "/rules").GET().build();
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        requireOk(response);
+        return response.body();
+    }
+
+    public void createRule(JSONObject rule) throws Exception {
+        HttpRequest request = authorized(baseUrl + "/rules")
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(rule.toString()))
+                .build();
+        requireOk(httpClient.send(request, HttpResponse.BodyHandlers.ofString()));
+    }
+
+    public void updateRule(long id, JSONObject rule) throws Exception {
+        HttpRequest request = authorized(baseUrl + "/rules/" + id)
+                .header("Content-Type", "application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString(rule.toString()))
+                .build();
+        requireOk(httpClient.send(request, HttpResponse.BodyHandlers.ofString()));
+    }
+
+    public void deleteRule(long id) throws Exception {
+        HttpRequest request = authorized(baseUrl + "/rules/" + id)
+                .DELETE()
+                .build();
+        requireOk(httpClient.send(request, HttpResponse.BodyHandlers.ofString()));
     }
 
     public void startPolling() {
@@ -95,8 +146,7 @@ public class BackendClient {
     }
 
     private void pollState() throws Exception {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/state"))
+        HttpRequest request = authorized(baseUrl + "/state")
                 .GET()
                 .build();
         
@@ -146,8 +196,7 @@ public class BackendClient {
     public void setRelay(int index, boolean state) {
         try {
             String body = "relay=" + index + "&state=" + state;
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(baseUrl + "/relay"))
+            HttpRequest request = authorized(baseUrl + "/relay")
                     .header("Content-Type", "application/x-www-form-urlencoded")
                     .POST(HttpRequest.BodyPublishers.ofString(body))
                     .build();
@@ -159,8 +208,7 @@ public class BackendClient {
 
     public void resetOverrides() {
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(baseUrl + "/reset_override"))
+            HttpRequest request = authorized(baseUrl + "/reset_override")
                     .POST(HttpRequest.BodyPublishers.noBody())
                     .build();
             httpClient.send(request, HttpResponse.BodyHandlers.discarding());
@@ -170,8 +218,7 @@ public class BackendClient {
     }
 
     public List<HistoryPoint> getHistoryChartData(int limit, String from, String to) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/history?limit=" + limit + "&from=" + from + "&to=" + to))
+        HttpRequest request = authorized(baseUrl + "/history?limit=" + limit + "&from=" + from + "&to=" + to)
                 .GET()
                 .build();
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
@@ -194,8 +241,7 @@ public class BackendClient {
     }
 
     public List<HourStat> getHourlyStats(String from, String to) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/stats/hourly?from=" + from + "&to=" + to))
+        HttpRequest request = authorized(baseUrl + "/stats/hourly?from=" + from + "&to=" + to)
                 .GET()
                 .build();
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
@@ -219,8 +265,7 @@ public class BackendClient {
     }
 
     public Summary getSummary(String from, String to) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/stats/summary?from=" + from + "&to=" + to))
+        HttpRequest request = authorized(baseUrl + "/stats/summary?from=" + from + "&to=" + to)
                 .GET()
                 .build();
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
@@ -238,8 +283,7 @@ public class BackendClient {
     }
 
     public Trend getTrend(String from, String to) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/stats/trend?from=" + from + "&to=" + to))
+        HttpRequest request = authorized(baseUrl + "/stats/trend?from=" + from + "&to=" + to)
                 .GET()
                 .build();
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
