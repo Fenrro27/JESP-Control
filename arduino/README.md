@@ -34,7 +34,7 @@ const int SECRET_SERVER_WS_PORT      = 5000;
 ```
 
 ### 2. `ESP32_Emu` (Emulador Python)
-Un script de Python (`ESP32_Emu.py`) que simula el hardware real del ESP32. Esto es extremadamente útil para desarrollar o probar el `JESP_Backend` y `JESP_DesktopApp` cuando no se dispone del módulo físico.
+Un script de Python (`ESP32_Emu.py`) que simula el hardware real del ESP32. Esto es extremadamente útil para desarrollar o probar el `JESP_Core` y `JESP_DesktopApp` cuando no se dispone del módulo físico.
 
 **Características del Emulador:**
 - Simula lecturas graduales de temperatura y humedad (con variaciones y redondeos realistas).

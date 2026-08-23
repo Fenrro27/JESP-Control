@@ -4,7 +4,7 @@ Este directorio contiene la aplicación cliente con interfaz gráfica (GUI) desa
 
 ## Descripción
 
-La aplicación de escritorio se conecta de forma remota al `JESP_Backend` a través de su API HTTP para proveer un panel de control interactivo (Dashboard). Sus funcionalidades principales incluyen:
+La aplicación de escritorio se conecta de forma remota al `JESP_Core` a través de su API HTTP para proveer un panel de control interactivo (Dashboard). Sus funcionalidades principales incluyen:
 - **Monitorización en Tiempo Real:** Visualización de la temperatura y humedad actuales recibidas desde el ESP32 (o su emulador).
 - **Control de Relés:** Permite encender o apagar manualmente cada uno de los 6 relés del módulo industrial.
 - **Sincronización:** Mantiene su interfaz gráfica actualizada haciendo peticiones continuas al backend para reflejar cambios ocurridos por reglas automáticas u otros clientes.
@@ -16,6 +16,6 @@ La aplicación de escritorio se conecta de forma remota al `JESP_Backend` a trav
 
 ## Ejecución
 
-1. Asegúrate de que el servidor `JESP_Backend` esté en ejecución.
+1. Asegúrate de que el servidor `JESP_Core` esté en ejecución.
 2. Compila y ejecuta el proyecto `JESP_DesktopApp` desde tu IDE (ejecutando la clase principal `jesp_desktop.DesktopMain`) o mediante Maven.
 3. Al iniciar, la aplicación intentará conectarse mediante HTTP a la dirección del servidor backend configurada (por defecto a `127.0.0.1:5001` consumiendo la API de escritorio).
