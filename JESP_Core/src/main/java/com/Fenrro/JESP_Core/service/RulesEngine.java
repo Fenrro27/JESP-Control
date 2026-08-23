@@ -1,165 +1,212 @@
 package com.Fenrro.JESP_Core.service;
 
-import com.Fenrro.JESP_Core.model.Rule;
+import com.Fenrro.JESP_Core.entity.RuleEntity;
+import com.Fenrro.JESP_Core.model.LegacyRulesParser;
+import com.Fenrro.JESP_Core.repository.RuleRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.DayOfWeek;
 import java.time.LocalTime;
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Service
 public class RulesEngine {
 
-    private final DeviceState deviceState;
+    private final RuleRepository ruleRepository;
+    private final DeviceRegistry deviceRegistry;
     private final HistoryService historyService;
     private final String rulesFile;
+    private final long sensorStalenessSeconds;
+    private final boolean staleFailsafeOff;
 
-    private final List<Rule> rules = new ArrayList<>();
-
-    public RulesEngine(DeviceState deviceState, HistoryService historyService,
-                       @Value("${jesp.rules-file}") String rulesFile) {
-        this.deviceState = deviceState;
+    public RulesEngine(RuleRepository ruleRepository,
+                       DeviceRegistry deviceRegistry,
+                       HistoryService historyService,
+                       @Value("${jesp.rules-file}") String rulesFile,
+                       @Value("${jesp.sensor-staleness-seconds:300}") long sensorStalenessSeconds,
+                       @Value("${jesp.stale-failsafe:OFF}") String staleFailsafe) {
+        this.ruleRepository = ruleRepository;
+        this.deviceRegistry = deviceRegistry;
         this.historyService = historyService;
         this.rulesFile = rulesFile;
+        this.sensorStalenessSeconds = sensorStalenessSeconds;
+        this.staleFailsafeOff = "OFF".equalsIgnoreCase(staleFailsafe);
     }
 
     @PostConstruct
     public void init() {
-        loadRules();
+        migrateLegacyFileIfNeeded();
+        log.info("Motor de reglas iniciado: {} reglas activas.", countEnabled());
     }
 
-    public synchronized void loadRules() {
-        rules.clear();
+    /** Importa el antiguo rules.conf a la BD una única vez (si la tabla está vacía). */
+    private void migrateLegacyFileIfNeeded() {
+        if (ruleRepository.count() > 0) return;
         Path path = Path.of(rulesFile);
-        if (!Files.exists(path)) {
-            crearReglasEjemplo(rulesFile);
-        }
-        try (BufferedReader br = new BufferedReader(new FileReader(rulesFile))) {
-            String line;
-            Rule currentRule = null;
-            while ((line = br.readLine()) != null) {
-                line = line.trim();
-                if (line.startsWith("#") || line.isEmpty()) continue;
-                if (line.equals("---")) {
-                    if (currentRule != null && currentRule.relayIndex != -1) {
-                        rules.add(currentRule);
-                    }
-                    currentRule = null;
-                    continue;
-                }
-                if (currentRule == null) currentRule = new Rule();
-
-                String[] parts = line.split("=", 2);
-                if (parts.length < 2) continue;
-                String key = parts[0].trim().toUpperCase();
-                String value = parts[1].trim();
-                if (value.equals("-") || value.isEmpty()) continue;
-
-                try {
-                    switch (key) {
-                        case "RELAY": currentRule.relayIndex = Integer.parseInt(value) - 1; break;
-                        case "ACTION": currentRule.targetState = value.equalsIgnoreCase("ON"); break;
-                        case "TIME_START": currentRule.timeStart = LocalTime.parse(value); break;
-                        case "TIME_END": currentRule.timeEnd = LocalTime.parse(value); break;
-                        case "TEMP_MIN": currentRule.tempMin = Float.parseFloat(value); break;
-                        case "TEMP_MAX": currentRule.tempMax = Float.parseFloat(value); break;
-                        case "HUM_MIN": currentRule.humMin = Float.parseFloat(value); break;
-                        case "HUM_MAX": currentRule.humMax = Float.parseFloat(value); break;
-                        case "CONDITION_LOGIC": currentRule.isAndLogic = value.equalsIgnoreCase("AND"); break;
-                    }
-                } catch (Exception e) {
-                    log.error("Error parsing rule line: {}", line);
-                }
+        if (!Files.exists(path)) return;
+        try {
+            List<RuleEntity> imported = LegacyRulesParser.parse(Files.readString(path));
+            if (!imported.isEmpty()) {
+                ruleRepository.saveAll(imported);
+                Path backup = path.resolveSibling(path.getFileName() + ".migrated.bak");
+                Files.move(path, backup);
+                log.info("Importadas {} reglas desde {} a la BD. Copia en {}.",
+                        imported.size(), rulesFile, backup);
             }
-            if (currentRule != null && currentRule.relayIndex != -1) {
-                rules.add(currentRule);
-            }
-            log.info("Cargadas {} reglas.", rules.size());
         } catch (Exception e) {
-            log.warn("No se encontró o no se pudo cargar el archivo de reglas: {}. Usando modo manual.", rulesFile);
+            log.warn("No se pudo importar el archivo de reglas {}: {}", rulesFile, e.getMessage());
         }
+    }
 
-        evaluateRules(true);
+    private long countEnabled() {
+        return ruleRepository.findByEnabledTrueOrderByPriorityAscIdAsc().size();
     }
 
     @Scheduled(fixedDelay = 5000)
-    public synchronized void evaluateRules() {
-        evaluateRules(false);
+    public void scheduledEvaluation() {
+        evaluateAll(false);
     }
 
-    public synchronized void evaluateRules(boolean isReset) {
+    public void evaluateAll(boolean isReset) {
+        for (DeviceSession session : deviceRegistry.all()) {
+            try {
+                evaluateDevice(session, isReset);
+            } catch (Exception e) {
+                log.error("Error evaluando reglas para {}: {}", session.getDeviceId(), e.getMessage());
+            }
+        }
+    }
+
+    public void evaluateDevice(DeviceSession session, boolean isReset) {
+        String deviceId = session.getDeviceId();
         LocalTime now = LocalTime.now();
-        float temp = deviceState.getCurrentTemp();
-        float hum = deviceState.getCurrentHum();
+        DayOfWeek today = java.time.LocalDate.now().getDayOfWeek();
+
+        List<RuleEntity> rules = ruleRepository.findByEnabledTrueOrderByPriorityAscIdAsc()
+                .stream()
+                .filter(r -> deviceIdOf(r).equals(deviceId))
+                .toList();
+
+        boolean sensorStale = session.isSensorStale(sensorStalenessSeconds);
+        if (sensorStale && hasSensorRule(rules)) {
+            log.warn("Sensores de {} obsoletos (>{}s sin datos). Failsafe: {}.",
+                    deviceId, sensorStalenessSeconds, staleFailsafeOff ? "OFF" : "KEEP");
+        }
 
         Boolean[] desiredState = new Boolean[6];
+        boolean[] governedBySensorRule = new boolean[6];
 
-        for (Rule rule : rules) {
-            if (rule.relayIndex < 0 || rule.relayIndex >= 6) continue;
-            if (deviceState.isManualOverride(rule.relayIndex)) continue;
+        for (RuleEntity rule : rules) {
+            int relayIndex = rule.getRelayIndex();
+            if (relayIndex < 0 || relayIndex >= 6) continue;
+            if (session.isManualOverride(relayIndex)) continue;
 
-            boolean conditionMet = rule.evaluate(temp, hum, now);
-            if (conditionMet) {
-                desiredState[rule.relayIndex] = rule.targetState;
+            boolean usesSensor = rule.getTempMin() != null || rule.getTempMax() != null
+                    || rule.getHumMin() != null || rule.getHumMax() != null;
+            if (usesSensor) {
+                governedBySensorRule[relayIndex] = true;
+                if (sensorStale) continue; // sin datos fiables no se evalúan reglas de sensor
+            }
+
+            if (!matchesDay(rule, today)) continue;
+            if (desiredState[relayIndex] != null) continue; // gana la regla de mayor prioridad
+
+            // La histéresis solo ensancha umbrales cuando la acción mantiene el estado actual,
+            // evitando el flapping alrededor del umbral.
+            float hysteresis = widen(session, rule);
+            if (rule.evaluate(now, session.getCurrentTemp(), session.getCurrentHum(), hysteresis)) {
+                // Cooldown por regla: si la acción cambiaría el relé antes del intervalo
+                // mínimo, se difiere este ciclo.
+                boolean wouldChange = session.getRelay(relayIndex) != rule.getTargetState();
+                if (!wouldChange || switchAllowed(session, relayIndex,
+                        rule.getMinSwitchIntervalSeconds())) {
+                    desiredState[relayIndex] = rule.getTargetState();
+                }
             }
         }
 
+        // Failsafe por sensor obsoleto
+        if (sensorStale && staleFailsafeOff) {
+            for (int i = 0; i < 6; i++) {
+                if (governedBySensorRule[i] && !session.isManualOverride(i)) {
+                    desiredState[i] = false;
+                }
+            }
+        }
+
+        applyDesiredStates(session, desiredState, isReset);
+    }
+
+    private static String deviceIdOf(RuleEntity rule) {
+        return DeviceRegistry.normalize(rule.getDeviceId());
+    }
+
+    private boolean hasSensorRule(List<RuleEntity> rules) {
+        return rules.stream().anyMatch(r -> r.getTempMin() != null || r.getTempMax() != null
+                || r.getHumMin() != null || r.getHumMax() != null);
+    }
+
+    /** Devuelve la histéresis aplicable si la regla pretende mantener el estado actual del relé. */
+    private float widen(DeviceSession session, RuleEntity rule) {
+        float h = rule.getHysteresis() == null ? 0f : Math.max(0f, rule.getHysteresis());
+        if (h == 0f) return 0f;
+        return session.getRelay(rule.getRelayIndex()) == rule.getTargetState() ? h : 0f;
+    }
+
+    private void applyDesiredStates(DeviceSession session, Boolean[] desiredState, boolean isReset) {
         for (int i = 0; i < 6; i++) {
-            if (deviceState.isManualOverride(i)) continue;
+            if (session.isManualOverride(i)) continue;
 
             boolean target;
             if (desiredState[i] != null) {
                 target = desiredState[i];
+            } else if (isReset) {
+                target = false;
             } else {
-                if (isReset) {
-                    target = false;
-                } else {
-                    target = deviceState.getRelay(i);
-                }
+                continue; // sin regla aplicable: mantener estado actual
             }
 
-            if (deviceState.getRelay(i) != target) {
-                deviceState.setRelay(i, target);
-                String reason = isReset ? "AUTOMATIC (RESET)" : "AUTOMATIC";
-                historyService.insertRelayEvent(i, target, reason);
-                log.info("Regla ejecutada: Rele {} cambiado a {}", i + 1, target ? "ON" : "OFF");
-            }
+            boolean current = session.getRelay(i);
+            if (current == target) continue;
+
+            session.setRelay(i, target);
+            historyService.insertRelayEvent(session.getDeviceId(), i, target,
+                    isReset ? "AUTOMATIC (RESET)" : "AUTOMATIC");
+            log.info("Regla ejecutada: [{}] relé {} cambiado a {}",
+                    session.getDeviceId(), i + 1, target ? "ON" : "OFF");
+            deviceRegistry.fireRelayChanged(session.getDeviceId());
         }
     }
 
-    private void crearReglasEjemplo(String filename) {
-        try {
-            Files.writeString(Path.of(filename),
-                "# Archivo de configuración de reglas para JESP-Control\n" +
-                "# Formato soportado por línea: CLAVE=VALOR\n" +
-                "# Utiliza '---' para separar las reglas.\n" +
-                "# CLAVES DISPONIBLES: RELAY (1-6), ACTION (ON/OFF), TIME_START (HH:mm), TIME_END (HH:mm), TEMP_MIN, TEMP_MAX, HUM_MIN, HUM_MAX, CONDITION_LOGIC (AND/OR)\n\n" +
-                "# Ejemplo 1: Encender el relé 1 si la temperatura supera los 30 grados\n" +
-                "RELAY=1\n" +
-                "ACTION=ON\n" +
-                "TEMP_MIN=30.0\n" +
-                "CONDITION_LOGIC=AND\n" +
-                "---\n\n" +
-                "# Ejemplo 2: Encender el relé 2 todos los días de 18:00 a 22:00\n" +
-                "RELAY=2\n" +
-                "ACTION=ON\n" +
-                "TIME_START=18:00\n" +
-                "TIME_END=22:00\n" +
-                "CONDITION_LOGIC=AND\n" +
-                "---\n"
-            );
-            log.info("Archivo de reglas de ejemplo creado en: {}", filename);
-        } catch (Exception e) {
-            log.warn("No se pudo crear el archivo de reglas de ejemplo.");
-        }
+    /** El cooldown se respeta si no ha transcurrido el intervalo mínimo desde el último cambio. */
+    private boolean switchAllowed(DeviceSession session, int relayIndex, int minIntervalSeconds) {
+        if (minIntervalSeconds <= 0) return true;
+        long elapsed = System.currentTimeMillis() - session.getLastSwitchAtMillis(relayIndex);
+        return elapsed >= minIntervalSeconds * 1000L;
+    }
+
+    static boolean matchesDay(RuleEntity rule, DayOfWeek today) {
+        String csv = rule.getDaysOfWeek();
+        if (csv == null || csv.isBlank()) return true;
+        Set<DayOfWeek> allowed = EnumSet.noneOf(DayOfWeek.class);
+        Arrays.stream(csv.toUpperCase().split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .forEach(s -> {
+                    try {
+                        allowed.add(DayOfWeek.valueOf(s));
+                    } catch (IllegalArgumentException ignored) {}
+                });
+        return allowed.isEmpty() || allowed.contains(today);
     }
 }

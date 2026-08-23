@@ -27,6 +27,10 @@ public class RelayHistory {
     @Column(name = "timestamp", nullable = false, updatable = false)
     private LocalDateTime timestamp;
 
+    /** Dispositivo de origen; null en registros legacy (esp32-default). */
+    @Column(name = "device_id")
+    private String deviceId;
+
     @Column(name = "relay_index")
     private Integer relayIndex;
 
@@ -37,6 +41,13 @@ public class RelayHistory {
     private String source;
 
     public RelayHistory(int relayIndex, boolean state, String source) {
+        this.relayIndex = relayIndex;
+        this.newState = state;
+        this.source = source;
+    }
+
+    public RelayHistory(String deviceId, int relayIndex, boolean state, String source) {
+        this.deviceId = deviceId;
         this.relayIndex = relayIndex;
         this.newState = state;
         this.source = source;

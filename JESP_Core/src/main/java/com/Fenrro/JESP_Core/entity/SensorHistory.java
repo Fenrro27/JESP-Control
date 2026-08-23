@@ -27,6 +27,10 @@ public class SensorHistory {
     @Column(name = "timestamp", nullable = false, updatable = false)
     private LocalDateTime timestamp;
 
+    /** Dispositivo de origen; null en registros legacy (esp32-default). */
+    @Column(name = "device_id")
+    private String deviceId;
+
     @Column(name = "temperature")
     private Float temperature;
 
@@ -34,6 +38,12 @@ public class SensorHistory {
     private Float humidity;
 
     public SensorHistory(float temperature, float humidity) {
+        this.temperature = temperature;
+        this.humidity = humidity;
+    }
+
+    public SensorHistory(String deviceId, float temperature, float humidity) {
+        this.deviceId = deviceId;
         this.temperature = temperature;
         this.humidity = humidity;
     }

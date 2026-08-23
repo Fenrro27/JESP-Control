@@ -11,31 +11,37 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.net.InetSocketAddress;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Servidor WebSocket para dispositivos físicos (ESP32).
+ * Cada conexión puede identificarse enviando {"id": "mi-dispositivo"} en cualquier
+ * mensaje; las conexiones sin identificador se asignan a {@link DeviceRegistry#DEFAULT_DEVICE_ID},
+ * manteniendo la compatibilidad con el firmware actual.
+ */
 @Slf4j
 @Component
 public class Esp32WebSocketServer extends WebSocketServer {
 
-    private final DeviceState deviceState;
+    private final DeviceRegistry deviceRegistry;
     private final HistoryService historyService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    private final Set<WebSocket> connections = Collections.synchronizedSet(new HashSet<>());
+    /** Mapa conexión -> deviceId normalizado. */
+    private final Map<WebSocket, String> connections = new ConcurrentHashMap<>();
 
-    public Esp32WebSocketServer(DeviceState deviceState, HistoryService historyService,
+    public Esp32WebSocketServer(DeviceRegistry deviceRegistry,
+                                HistoryService historyService,
                                 @Value("${jesp.ws-port}") int port) {
         super(new InetSocketAddress(port));
-        this.deviceState = deviceState;
+        this.deviceRegistry = deviceRegistry;
         this.historyService = historyService;
     }
 
     @PostConstruct
     public void init() {
-        deviceState.setOnRelayChanged(this::broadcastCurrentConfig);
+        deviceRegistry.onRelayChanged(this::broadcastCurrentConfig);
         try {
             start();
             log.info("Servidor WebSocket ESP32 iniciado en el puerto {}", getPort());
@@ -55,26 +61,39 @@ public class Esp32WebSocketServer extends WebSocketServer {
 
     @Override
     public void onOpen(WebSocket conn, ClientHandshake handshake) {
-        log.info("Nuevo ESP32 conectado vía WebSocket: {}", conn.getRemoteSocketAddress());
-        connections.add(conn);
-        sendCurrentConfig(conn);
+        connections.put(conn, DeviceRegistry.DEFAULT_DEVICE_ID);
+        log.info("Nuevo dispositivo conectado vía WebSocket: {}", conn.getRemoteSocketAddress());
+        sendCurrentConfig(conn, DeviceRegistry.DEFAULT_DEVICE_ID);
     }
 
     @Override
     public void onClose(WebSocket conn, int code, String reason, boolean remote) {
-        log.info("ESP32 desconectado: {}", conn.getRemoteSocketAddress());
-        connections.remove(conn);
+        String deviceId = connections.remove(conn);
+        log.info("Dispositivo desconectado ({}): {}", deviceId, conn.getRemoteSocketAddress());
     }
 
     @Override
     public void onMessage(WebSocket conn, String message) {
         try {
             Map<String, Object> json = objectMapper.readValue(message, Map.class);
+
+            // Identificación del dispositivo (compatible hacia atrás: sin "id" => por defecto)
+            if (json.containsKey("id")) {
+                try {
+                    String deviceId = DeviceRegistry.normalize(String.valueOf(json.get("id")));
+                    connections.put(conn, deviceId);
+                } catch (IllegalArgumentException e) {
+                    log.warn("deviceId inválido descartado: {}", e.getMessage());
+                }
+            }
+            String deviceId = connections.getOrDefault(conn, DeviceRegistry.DEFAULT_DEVICE_ID);
+
             if (json.containsKey("temp") && json.containsKey("hum")) {
                 float temp = ((Number) json.get("temp")).floatValue();
                 float hum = ((Number) json.get("hum")).floatValue();
-                deviceState.setTempAndHum(temp, hum);
-                historyService.insertSensorData(temp, hum);
+                DeviceSession session = deviceRegistry.getOrCreate(deviceId);
+                session.markSeen(temp, hum);
+                historyService.insertSensorData(deviceId, temp, hum);
             }
         } catch (Exception e) {
             log.error("Error procesando mensaje WS: {}", message);
@@ -92,23 +111,32 @@ public class Esp32WebSocketServer extends WebSocketServer {
     }
 
     public boolean isDeviceConnected() {
-        return !connections.isEmpty();
+        return isDeviceConnected(DeviceRegistry.DEFAULT_DEVICE_ID);
     }
 
-    public void broadcastCurrentConfig() {
+    public boolean isDeviceConnected(String deviceId) {
+        return connections.containsValue(deviceId);
+    }
+
+    public void broadcastCurrentConfig(String deviceId) {
         try {
-            String msg = objectMapper.writeValueAsString(Map.of("reles", deviceState.getRelays()));
-            for (WebSocket conn : connections) {
-                conn.send(msg);
+            DeviceSession session = deviceRegistry.getOrCreate(deviceId);
+            String msg = objectMapper.writeValueAsString(Map.of("reles", session.getRelays()));
+            for (Map.Entry<WebSocket, String> entry : connections.entrySet()) {
+                if (entry.getValue().equals(deviceId)) {
+                    entry.getKey().send(msg);
+                }
             }
         } catch (Exception e) {
-            log.error("Error transmitiendo configuración de relés: {}", e.getMessage());
+            log.error("Error transmitiendo configuración de relés de {}: {}",
+                    deviceId, e.getMessage());
         }
     }
 
-    private void sendCurrentConfig(WebSocket conn) {
+    private void sendCurrentConfig(WebSocket conn, String deviceId) {
         try {
-            String msg = objectMapper.writeValueAsString(Map.of("reles", deviceState.getRelays()));
+            DeviceSession session = deviceRegistry.getOrCreate(deviceId);
+            String msg = objectMapper.writeValueAsString(Map.of("reles", session.getRelays()));
             conn.send(msg);
         } catch (Exception e) {
             log.error("Error enviando configuración inicial: {}", e.getMessage());

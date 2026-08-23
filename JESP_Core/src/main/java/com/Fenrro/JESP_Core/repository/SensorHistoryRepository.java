@@ -15,10 +15,13 @@ public interface SensorHistoryRepository extends JpaRepository<SensorHistory, Lo
     @Query(value = """
             SELECT * FROM sensor_history
             WHERE timestamp >= :fromMs AND timestamp <= :toMs
+              AND (:device IS NULL OR device_id = :device
+                   OR (device_id IS NULL AND :device = 'esp32-default'))
             ORDER BY id DESC
             LIMIT :limit
             """, nativeQuery = true)
     List<SensorHistory> findBetween(@Param("fromMs") long fromMs, @Param("toMs") long toMs,
+                                    @Param("device") String device,
                                     @Param("limit") int limit);
 
     @Query(value = """
@@ -30,10 +33,13 @@ public interface SensorHistoryRepository extends JpaRepository<SensorHistory, Lo
                    COUNT(*) AS records
             FROM sensor_history
             WHERE timestamp >= :fromMs AND timestamp <= :toMs
+              AND (:device IS NULL OR device_id = :device
+                   OR (device_id IS NULL AND :device = 'esp32-default'))
             GROUP BY hour
             ORDER BY hour
             """, nativeQuery = true)
-    List<HourlyStat> findHourlyProfile(@Param("fromMs") long fromMs, @Param("toMs") long toMs);
+    List<HourlyStat> findHourlyProfile(@Param("fromMs") long fromMs, @Param("toMs") long toMs,
+                                       @Param("device") String device);
 
     @Query(value = """
             SELECT AVG(temperature) AS avgTemp,
@@ -43,8 +49,11 @@ public interface SensorHistoryRepository extends JpaRepository<SensorHistory, Lo
                    COUNT(*) AS records
             FROM sensor_history
             WHERE timestamp >= :fromMs AND timestamp <= :toMs
+              AND (:device IS NULL OR device_id = :device
+                   OR (device_id IS NULL AND :device = 'esp32-default'))
             """, nativeQuery = true)
-    SummaryStat findSummary(@Param("fromMs") long fromMs, @Param("toMs") long toMs);
+    SummaryStat findSummary(@Param("fromMs") long fromMs, @Param("toMs") long toMs,
+                            @Param("device") String device);
 
     interface HourlyStat {
         Integer getHour();
